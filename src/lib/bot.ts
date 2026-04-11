@@ -38,7 +38,7 @@ interface SessionData {
     | 'waiting_for_vancung_date'
     | 'waiting_for_vancung_location'
     | 'waiting_for_expense_year';
-  context: 'nhansu' | 'danhba' | 'giapha' | 'thuchi' | 'meetings' | 'books' | 'reminders' | 'horoscope' | 'projects' | 'idle';
+  context: 'nhansu' | 'danhba' | 'giapha' | 'thuchi' | 'meetings' | 'books' | 'reminders' | 'horoscope' | 'projects' | 'work_menu' | 'personal_menu' | 'idle';
   
   selectedGoalId?: number;
   selectedGoalName?: string;
@@ -77,12 +77,21 @@ bot.use(session({ initial: (): SessionData => ({ step: 'idle', context: 'idle' }
 
 // --- Keyboards ---
 const MAIN_KEYBOARD = new Keyboard()
+  .text('💼 Công việc').text('👤 Cá nhân').row()
+  .text('❓ Trợ giúp')
+  .resized();
+
+const CONG_VIEC_KEYBOARD = new Keyboard()
   .text('🔍 Tìm nhân sự').text('📖 Danh bạ').row()
+  .text('📝 Biên bản họp').text('📊 Kinh phí dự án').row()
+  .text('💡 Nhắc việc').text('⬅️ Quay lại').row()
+  .resized();
+
+const CA_NHAN_KEYBOARD = new Keyboard()
   .text('🌳 Gia phả').text('💰 Thu chi').row()
-  .text('📝 Biên bản họp').text('📋 Lí lịch cá nhân').row()
-  .text('📚 Đọc sách').text('💡 Nhắc việc').row()
+  .text('📋 Lí lịch cá nhân').text('📚 Đọc sách').row()
   .text('📅 Xem ngày tốt').text('📜 Văn cúng').row()
-  .text('📊 Kinh phí dự án').text('❓ Trợ giúp').row()
+  .text('⬅️ Quay lại')
   .resized();
 
 const SEARCH_KEYBOARD = new Keyboard()
@@ -288,7 +297,28 @@ bot.on('message:text', async (ctx) => {
     return ctx.reply('🌳 **Gia phả dòng họ** hành động nào?', { parse_mode: 'Markdown', reply_markup: GIAPHA_KEYBOARD });
   }
 
+  if (text === '💼 Công việc') {
+    ctx.session.context = 'work_menu';
+    return ctx.reply('💼 **DANH MỤC CÔNG VIỆC**\nChọn tính năng bạn cần:', { reply_markup: CONG_VIEC_KEYBOARD });
+  }
+
+  if (text === '👤 Cá nhân') {
+    ctx.session.context = 'personal_menu';
+    return ctx.reply('👤 **DANH MỤC CÁ NHÂN**\nChọn tính năng bạn cần:', { reply_markup: CA_NHAN_KEYBOARD });
+  }
+
+  // --- Nhân sự Handlers ---
+  if (text === '🔍 Tìm nhân sự' && (ctx.session.context === 'work_menu' || ctx.session.context === 'nhansu')) {
+    ctx.session.context = 'nhansu';
+    return ctx.reply('🔍 **TÌM KIẾM NHÂN SỰ**\nBạn muốn tìm kiếm theo tiêu chí nào?', { reply_markup: SEARCH_KEYBOARD });
+  }
+
   // --- Danh bạ Handlers ---
+  if (text === '📖 Danh bạ' && (ctx.session.context === 'work_menu' || ctx.session.context === 'danhba')) {
+    ctx.session.context = 'danhba';
+    return ctx.reply('📖 **DANH BẠ LIÊN LẠC**\nChọn thao tác:', { reply_markup: DANHBA_KEYBOARD });
+  }
+
   if (text === '🔍 Tìm liên lạc' && ctx.session.context === 'danhba') {
     ctx.session.step = 'waiting_for_contact_search';
     return ctx.reply('🔍 Nhập **tên** hoặc **chức vụ** liên lạc cần tìm:', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
@@ -305,6 +335,11 @@ bot.on('message:text', async (ctx) => {
   }
 
   // --- Gia phả Handlers ---
+  if (text === '🌳 Gia phả' && (ctx.session.context === 'personal_menu' || ctx.session.context === 'giapha')) {
+    ctx.session.context = 'giapha';
+    return ctx.reply('🌳 **QUẢN LÝ GIA PHẢ**\nChọn thao tác:', { reply_markup: GIAPHA_KEYBOARD });
+  }
+
   if (text === '🔍 Tìm thành viên' && ctx.session.context === 'giapha') {
     ctx.session.step = 'waiting_for_genealogy_search';
     return ctx.reply('🔍 Nhập tên thành viên gia tộc cần tìm:', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
@@ -315,12 +350,12 @@ bot.on('message:text', async (ctx) => {
     return ctx.reply('🔍 Nhập tên thành viên bạn muốn **Cập nhật thông tin**:');
   }
 
-  if (text === '💰 Thu chi') {
+  if (text === '💰 Thu chi' && (ctx.session.context === 'personal_menu' || ctx.session.context === 'thuchi')) {
     ctx.session.step = 'thuchi_main'; ctx.session.context = 'thuchi';
     return ctx.reply('💰 **QUẢN LÝ THU CHI**\nChọn thao tác bạn muốn thực hiện:', { parse_mode: 'Markdown', reply_markup: THUCHI_MAIN_KEYBOARD });
   }
 
-  if (text === '📝 Biên bản họp') {
+  if (text === '📝 Biên bản họp' && (ctx.session.context === 'work_menu' || ctx.session.context === 'meetings')) {
     ctx.session.step = 'idle';
     ctx.session.context = 'meetings';
     return ctx.reply('📝 **BIÊN BẢN HỌP**\nChọn loại hình hoặc tạo mới:', {
@@ -328,7 +363,7 @@ bot.on('message:text', async (ctx) => {
     });
   }
 
-  if (text === '📋 Lí lịch cá nhân') {
+  if (text === '📋 Lí lịch cá nhân' && (ctx.session.context === 'personal_menu' || ctx.session.context === 'idle')) {
     ctx.session.step = 'idle';
     ctx.session.context = 'idle'; // Generic context for viewing
     return ctx.reply('📋 **LÍ LỊCH CÁ NHÂN**\nChọn thông tin cần xem:', {
@@ -336,7 +371,7 @@ bot.on('message:text', async (ctx) => {
     });
   }
 
-  if (text === '📚 Đọc sách') {
+  if (text === '📚 Đọc sách' && (ctx.session.context === 'personal_menu' || ctx.session.context === 'books')) {
     ctx.session.step = 'idle';
     ctx.session.context = 'books';
     const { data: books } = await supabase.from('books').select('*').order('title');
@@ -347,25 +382,25 @@ bot.on('message:text', async (ctx) => {
     return ctx.reply('📚 **THƯ VIỆN SÁCH**\nChọn sách bạn muốn đọc:', { reply_markup: keyboard });
   }
 
-  if (text === '💡 Nhắc việc') {
+  if (text === '💡 Nhắc việc' && (ctx.session.context === 'work_menu' || ctx.session.context === 'reminders')) {
     ctx.session.step = 'idle';
     ctx.session.context = 'reminders';
     return ctx.reply('💡 **TRỢ LÝ NHẮC VIỆC**\nTôi có thể giúp gì cho lịch trình của bạn hôm nay?', { reply_markup: REMINDER_MAIN_KEYBOARD });
   }
 
-  if (text === '📅 Xem ngày tốt') {
+  if (text === '📅 Xem ngày tốt' && (ctx.session.context === 'personal_menu' || ctx.session.context === 'horoscope')) {
     ctx.session.step = 'idle';
     ctx.session.context = 'horoscope';
     return ctx.reply('📅 **XEM NGÀY LÀNH THÁNG TỐT**\nChọn loại công việc bạn muốn xem ngày:', { reply_markup: HOROSCOPE_KEYBOARD });
   }
 
-  if (text === '📜 Văn cúng') {
+  if (text === '📜 Văn cúng' && (ctx.session.context === 'personal_menu' || ctx.session.context === 'idle')) {
     ctx.session.step = 'waiting_for_vancung_type';
     ctx.session.context = 'idle';
     return ctx.reply('📜 **TRỢ LÝ VĂN CÚNG TÂM LINH**\nChọn loại nghi lễ bạn thực hiện:', { reply_markup: VANCUNG_TYPE_KEYBOARD });
   }
 
-  if (text === '📊 Kinh phí dự án') {
+  if (text === '📊 Kinh phí dự án' && (ctx.session.context === 'work_menu' || ctx.session.context === 'projects')) {
     ctx.session.step = 'waiting_for_expense_year';
     ctx.session.context = 'projects';
     return ctx.reply('📊 **QUẢN LÝ KINH PHÍ DỰ ÁN**\nVui lòng nhập năm ngân sách bạn muốn tra cứu (ví dụ: 2025):', {
@@ -384,6 +419,10 @@ bot.on('message:text', async (ctx) => {
   }
 
   if (text === '⬅️ Quay lại') {
+    // Hierarchical Navigation Logic
+    const workGroup = ['nhansu', 'danhba', 'meetings', 'projects', 'reminders'];
+    const personalGroup = ['giapha', 'thuchi', 'books', 'horoscope'];
+
     if (ctx.session.context === 'thuchi' && ctx.session.selectedGoalId) {
         if (ctx.session.step === 'thuchi_main' || ctx.session.step === 'selecting_goal_for_input') {
              ctx.session.selectedGoalId = undefined; ctx.session.selectedGoalName = undefined; ctx.session.step = 'thuchi_main';
@@ -399,23 +438,32 @@ bot.on('message:text', async (ctx) => {
     }
     if (ctx.session.context === 'books' && ctx.session.selectedBookId) {
        if (ctx.session.step === 'reading_book_section') {
-           // Go back to TOC
            ctx.session.step = 'idle';
            const { data: sections } = await supabase.from('book_sections').select('id, title').eq('book_id', ctx.session.selectedBookId).order('order_index');
            const keyboard = new InlineKeyboard();
            sections?.forEach(s => keyboard.text(s.title, `sel_bsec:${s.id}`).row());
            return ctx.reply(`📖 **${ctx.session.selectedBookTitle}**\n\nChọn chương/mục để đọc tiếp:`, { reply_markup: keyboard });
        }
-       ctx.session.selectedBookId = undefined;
-       ctx.session.selectedBookTitle = undefined;
-       ctx.session.step = 'idle';
+       ctx.session.selectedBookId = undefined; ctx.session.selectedBookTitle = undefined; ctx.session.step = 'idle';
        const { data: books } = await supabase.from('books').select('*').order('title');
        const keyboard = new InlineKeyboard();
        books?.forEach(b => keyboard.text(b.title, `sel_book:${b.id}`).row());
        return ctx.reply('📚 **THƯ VIỆN SÁCH**\nChọn sách bạn muốn đọc:', { reply_markup: keyboard });
     }
-    ctx.session.step = 'idle'; ctx.session.context = 'idle'; ctx.session.selectedGoalId = undefined; ctx.session.selectedGoalName = undefined;
-    return ctx.reply('Đã quay lại menu chính.', { reply_markup: MAIN_KEYBOARD });
+
+    // Level 2 -> Level 1
+    if (workGroup.includes(ctx.session.context)) {
+      ctx.session.context = 'work_menu'; ctx.session.step = 'idle';
+      return ctx.reply('💼 **DANH MỤC CÔNG VIỆC**', { reply_markup: CONG_VIEC_KEYBOARD });
+    }
+    if (personalGroup.includes(ctx.session.context)) {
+      ctx.session.context = 'personal_menu'; ctx.session.step = 'idle';
+      return ctx.reply('👤 **DANH MỤC CÁ NHÂN**', { reply_markup: CA_NHAN_KEYBOARD });
+    }
+
+    // Level 1 -> Root
+    ctx.session.step = 'idle'; ctx.session.context = 'idle';
+    return ctx.reply('🏠 **MENU CHÍNH**', { reply_markup: MAIN_KEYBOARD });
   }
 
   // --- Meetings Flow ---
