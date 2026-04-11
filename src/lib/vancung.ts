@@ -1,4 +1,5 @@
 import { LunarDateInfo } from './lunar';
+import { supabase } from './supabase';
 
 const CAN_NAMES = ["Giáp", "Ất", "Bính", "Đinh", "Mậu", "Kỷ", "Canh", "Tân", "Nhâm", "Quý"];
 const CHI_NAMES = ["Tý", "Sửu", "Dần", "Mão", "Thìn", "Tỵ", "Ngọ", "Mùi", "Thân", "Dậu", "Tuất", "Hợi"];
@@ -44,11 +45,21 @@ export function toHanVietDate(lunar: LunarDateInfo): string {
 
 export const ADDRESS_DEFAULT = "Việt Nam quốc Đà Nẵng thành Cẩm Lệ phường, Phước Hòa khối Thuận An nam ấp Bầu Tràm thượng xứ, Cách Mạng Tháng Tám lộ, số 226";
 
-export function generatePrayerOutdoor(type: string, lunar: LunarDateInfo) {
+export async function generatePrayerOutdoor(type: string, lunar: LunarDateInfo) {
   const hvDate = toHanVietDate(lunar);
   const chiIdx = (lunar.year - 4) % 12;
   const hanhKhien = HANH_KHIEN_MAP[chiIdx];
   const lunarFull = `${lunar.day}/${lunar.month}/${lunar.year} Âm lịch`;
+
+  // Fetch specific lyrics from database
+  const { data } = await supabase
+    .from('vancung_templates')
+    .select('lyrics')
+    .eq('ceremony_type', type)
+    .eq('location', 'outdoor')
+    .single();
+
+  const specificLyrics = data?.lyrics || "Phù hộ độ trì cho tín chủ cùng toàn gia (tộc): Bình an khương thái, vạn sự hanh thông. Cầu tài đắc tài, cầu lợi đắc lợi, cảm dĩ toại thông.";
 
   return `📜 **VĂN CÚNG NGOÀI SÂN - ${type.toUpperCase()}**
 
@@ -73,8 +84,11 @@ export function generatePrayerOutdoor(type: string, lunar: LunarDateInfo) {
 - Tiền hiền khai khẩn, hậu hiền khai canh, khai cư chi thần.
 - Nội gia viên trạch, ngoại gia viên cư.
 
-✨ **KHẨN CẦU**:
-Thỉnh nghinh chư vị Tôn thần, đồng lai chứng giám, cảm kỳ lễ vật. Phù hộ độ trì cho tín chủ cùng toàn gia (tộc): Bình an khương thái, vạn sự hanh thông. Cầu tài đắc tài, cầu lợi đắc lợi, cảm dĩ toại thông.
+✨ **CẢM CÁO VU**:
+Kính xin chư Tôn linh, Kính cáo Táo phủ thần quân, Ngũ tự gia thần. Kính mời Gia đường tiên linh Khảo, Tỷ, Bá, Thúc, Huynh, Đệ, Cô, Di Tỷ, Muội, Nội Ngoại chân linh, lai đáo đàng tiền chứng minh công đức thọ hưởng lễ vật.
+
+✨ **CUNG DUY**:
+${specificLyrics}
 
 📅 **Hôm nay là ngày**: ${lunarFull}
 Kính xin chư vị Tôn thần cho phép ông bà tổ tiên chúng con được nhập linh sàng để con cháu được phụng thờ, hương khói.

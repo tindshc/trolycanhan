@@ -853,7 +853,7 @@ bot.on('message:text', async (ctx) => {
       if (text === '🏡 Ngoài sân') {
           const solar = ctx.session.selectedMeetingDate!.split('/').map(Number);
           const lunar = getLunarDate(solar[0], solar[1], solar[2]);
-          const result = generatePrayerOutdoor(ctx.session.selectedVancungType!, lunar);
+          const result = await generatePrayerOutdoor(ctx.session.selectedVancungType!, lunar);
           ctx.session.step = 'idle';
           return ctx.reply(result, { parse_mode: 'Markdown', reply_markup: MAIN_KEYBOARD });
       }
