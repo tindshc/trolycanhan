@@ -1,7 +1,7 @@
 import { Bot, Context, session, SessionFlavor, Keyboard, InlineKeyboard } from 'grammy';
 import { supabase } from './supabase';
 import { getSolarDate } from './lunar';
-import { rankAuspiciousDays, TASK_LIST } from './horoscope';
+import { rankAuspiciousDays, TASK_LIST, TaskType } from './horoscope';
 
 // Define session interface
 interface SessionData {
