@@ -698,7 +698,7 @@ bot.on('message:text', async (ctx) => {
       const taskType = ctx.session.selectedTaskType as any;
       const topDays = rankAuspiciousDays(start, end, taskType as any);
       
-      let resp = `🌟 **TOP 5 NGÀY TỐT NHẤT CHO ${TASK_LIST[taskType].name.toUpperCase()}**\n`;
+      let resp = `🌟 **TOP 5 NGÀY TỐT NHẤT CHO ${TASK_LIST[taskType as TaskType].name.toUpperCase()}**\n`;
       resp += `📅 Giai đoạn: ${parts[0].trim()} - ${parts[1].trim()}\n\n`;
       
       topDays.forEach((item: any, idx: number) => {
