@@ -1,22 +1,19 @@
 -- Table for Projects (DUAN)
 CREATE TABLE IF NOT EXISTS public.pe_projects (
     code TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    name TEXT NOT NULL
 );
 
 -- Table for Activities (NDHDDUAN)
 CREATE TABLE IF NOT EXISTS public.pe_activities (
     code TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    name TEXT NOT NULL
 );
 
 -- Table for Task Types (HDCHITIET)
 CREATE TABLE IF NOT EXISTS public.pe_task_types (
     code TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    name TEXT NOT NULL
 );
 
 -- Table for detailed Expense Records
@@ -30,8 +27,7 @@ CREATE TABLE IF NOT EXISTS public.pe_expenses (
     qty DOUBLE PRECISION,
     price DOUBLE PRECISION,
     total DOUBLE PRECISION,
-    note TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    note TEXT
 );
 
 -- Enable RLS

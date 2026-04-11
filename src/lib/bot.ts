@@ -883,7 +883,9 @@ bot.on('message:text', async (ctx) => {
         .eq('year', year);
         
       if (error) return ctx.reply('❌ Lỗi tra cứu: ' + error.message);
-      if (!summary || summary.length === 0) return ctx.reply(`📭 Không tìm thấy dữ liệu kinh phí cho năm **${year}**.`);
+      if (!summary || summary.length === 0) {
+          return ctx.reply(`📭 Không tìm thấy dữ liệu kinh phí cho năm **${year}**.\n\n_Vui lòng đảm bảo bạn đã chạy script nạp dữ liệu (import-project-expenses.ts) thành công trên hệ thống._`, { parse_mode: 'Markdown' });
+      }
       
       const totals: Record<string, { name: string, total: number }> = {};
       summary.forEach((row: any) => {
