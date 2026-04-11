@@ -55,8 +55,6 @@ interface SessionData {
 
   selectedContactId?: number;
   selectedRelativeId?: number;
-  selectedContactId?: number;
-  selectedRelativeId?: number;
   selectedField?: string;
 
   selectedVancungType?: string;
