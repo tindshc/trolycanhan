@@ -36,8 +36,9 @@ interface SessionData {
     | 'reading_book_section'
     | 'waiting_for_vancung_type'
     | 'waiting_for_vancung_date'
-    | 'waiting_for_vancung_location';
-  context: 'nhansu' | 'danhba' | 'giapha' | 'thuchi' | 'meetings' | 'books' | 'reminders' | 'horoscope' | 'idle';
+    | 'waiting_for_vancung_location'
+    | 'waiting_for_expense_year';
+  context: 'nhansu' | 'danhba' | 'giapha' | 'thuchi' | 'meetings' | 'books' | 'reminders' | 'horoscope' | 'projects' | 'idle';
   
   selectedGoalId?: number;
   selectedGoalName?: string;
@@ -58,6 +59,7 @@ interface SessionData {
   selectedField?: string;
 
   selectedVancungType?: string;
+  selectedExpenseYear?: number;
 }
 
 type MyContext = Context & SessionFlavor<SessionData>;
@@ -80,7 +82,7 @@ const MAIN_KEYBOARD = new Keyboard()
   .text('📝 Biên bản họp').text('📋 Lí lịch cá nhân').row()
   .text('📚 Đọc sách').text('💡 Nhắc việc').row()
   .text('📅 Xem ngày tốt').text('📜 Văn cúng').row()
-  .text('❓ Trợ giúp').row()
+  .text('📊 Kinh phí dự án').text('❓ Trợ giúp').row()
   .resized();
 
 const SEARCH_KEYBOARD = new Keyboard()
@@ -361,6 +363,14 @@ bot.on('message:text', async (ctx) => {
     ctx.session.step = 'waiting_for_vancung_type';
     ctx.session.context = 'idle';
     return ctx.reply('📜 **TRỢ LÝ VĂN CÚNG TÂM LINH**\nChọn loại nghi lễ bạn thực hiện:', { reply_markup: VANCUNG_TYPE_KEYBOARD });
+  }
+
+  if (text === '📊 Kinh phí dự án') {
+    ctx.session.step = 'waiting_for_expense_year';
+    ctx.session.context = 'projects';
+    return ctx.reply('📊 **QUẢN LÝ KINH PHÍ DỰ ÁN**\nVui lòng nhập năm ngân sách bạn muốn tra cứu (ví dụ: 2025):', {
+        reply_markup: new Keyboard().text('2025').text('2026').row().text('⬅️ Quay lại').resized()
+    });
   }
 
   if (text === '🔍 Tìm nội dung' && ctx.session.context === 'meetings') {
@@ -859,6 +869,39 @@ bot.on('message:text', async (ctx) => {
           return ctx.reply('Tính năng cúng **Trong nhà** đang được biên soạn nội dung. Hãy thử lại sau!');
       }
     }
+
+    if (step === 'waiting_for_expense_year' && ctx.session.context === 'projects') {
+      if (text === '⬅️ Quay lại') { ctx.session.step = 'idle'; return ctx.reply('Đã hủy.', { reply_markup: MAIN_KEYBOARD }); }
+      const year = parseInt(text);
+      if (isNaN(year)) return ctx.reply('❌ Năm không hợp lệ. Vui lòng nhập số năm (ví dụ: 2025).');
+      
+      ctx.session.selectedExpenseYear = year;
+      
+      const { data: summary, error } = await supabase
+        .from('pe_expenses')
+        .select('project_code, pe_projects(name), total')
+        .eq('year', year);
+        
+      if (error) return ctx.reply('❌ Lỗi tra cứu: ' + error.message);
+      if (!summary || summary.length === 0) return ctx.reply(`📭 Không tìm thấy dữ liệu kinh phí cho năm **${year}**.`);
+      
+      const totals: Record<string, { name: string, total: number }> = {};
+      summary.forEach((row: any) => {
+        const code = row.project_code;
+        const name = row.pe_projects?.name || code;
+        if (!totals[code]) totals[code] = { name, total: 0 };
+        totals[code].total += row.total;
+      });
+      
+      let msg = `📊 **TỔNG HỢP KINH PHÍ NĂM ${year}**\n\n`;
+      const keyboard = new InlineKeyboard();
+      Object.entries(totals).forEach(([code, data]) => {
+        msg += `🔹 **${code}**: ${data.total.toLocaleString('vi-VN')}k\n`;
+        keyboard.text(`📂 Xem ${code}`, `exp_proj:${year}:${code}`).row();
+      });
+      msg += `\n_(Đơn vị: nghìn đồng)_\n\nChọn một dự án để xem chi tiết hoạt động:`;
+      return ctx.reply(msg, { parse_mode: 'Markdown', reply_markup: keyboard });
+    }
   }
 
   if (!text.startsWith('/') && ctx.session.context === 'idle' && text.length > 2) { return executeSearch(ctx, 'full_name', text, 'tìm nhanh'); }
@@ -876,6 +919,33 @@ bot.on('callback_query:data', async (ctx) => {
     const p = data.split(':'); ctx.session.selectedMeetingTypeId = parseInt(p[1]); ctx.session.selectedMeetingTypeName = p[2];
     await ctx.answerCallbackQuery(); await ctx.editMessageText(`📂 Loại hình: **${p[2]}**`);
     return ctx.reply(`📅 **${p[2]}**\nChọn thời gian họp:`, { reply_markup: MEETING_DASHBOARD_KEYBOARD });
+  }
+
+  if (data.startsWith('exp_proj:')) {
+    const [, year, code] = data.split(':');
+    const { data: details, error } = await supabase
+      .from('pe_expenses')
+      .select('activity_code, pe_activities(name), total')
+      .eq('year', parseInt(year))
+      .eq('project_code', code);
+      
+    if (error) return ctx.reply('❌ Lỗi chi tiết: ' + error.message);
+    
+    const actTotals: Record<string, { name: string, total: number }> = {};
+    details.forEach((row: any) => {
+      const aCode = row.activity_code;
+      const aName = row.pe_activities?.name || aCode;
+      if (!actTotals[aCode]) actTotals[aCode] = { name: aName, total: 0 };
+      actTotals[aCode].total += row.total;
+    });
+    
+    let msg = `📂 **CHI TIẾT DỰ ÁN ${code} - ${year}**\n\n`;
+    Object.entries(actTotals).forEach(([aCode, data]) => {
+      msg += `📍 **${data.name}**\n💰 Tổng: \`${data.total.toLocaleString('vi-VN')}k\`\n\n`;
+    });
+    msg += `\n_(Đơn vị: nghìn đồng)_`;
+    await ctx.answerCallbackQuery();
+    return ctx.reply(msg, { parse_mode: 'Markdown' });
   }
   if (data.startsWith('sel_mdate:')) {
     const p = data.split(':'); ctx.session.selectedMeetingDate = p[1];
