@@ -52,14 +52,21 @@ export async function generatePrayerOutdoor(type: string, lunar: LunarDateInfo) 
   const lunarFull = `${lunar.day}/${lunar.month}/${lunar.year} Âm lịch`;
 
   // Fetch specific lyrics from database
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('vancung_templates')
     .select('lyrics')
     .eq('ceremony_type', type)
     .eq('location', 'outdoor')
-    .single();
+    .maybeSingle();
 
-  const specificLyrics = data?.lyrics || "Phù hộ độ trì cho tín chủ cùng toàn gia (tộc): Bình an khương thái, vạn sự hanh thông. Cầu tài đắc tài, cầu lợi đắc lợi, cảm dĩ toại thông.";
+  if (error) {
+      return `❌ **Lỗi truy vấn Database**: ${error.message}`;
+  }
+
+  const specificLyrics = data?.lyrics;
+  
+  // If not found, provide a fallback and a diagnostic warning
+  const lyricsBody = specificLyrics || `_⚠️ Không tìm thấy mẫu văn vần cho loại lễ [${type}] kèm emoji trong database. Hệ thống sẽ sử dụng lời khấn chung._\n\nPhù hộ độ trì cho tín chủ cùng toàn gia (tộc): Bình an khương thái, vạn sự hanh thông. Cầu tài đắc tài, cầu lợi đắc lợi, cảm dĩ toại thông.`;
 
   return `📜 **VĂN CÚNG NGOÀI SÂN - ${type.toUpperCase()}**
 
@@ -88,7 +95,7 @@ export async function generatePrayerOutdoor(type: string, lunar: LunarDateInfo) 
 Kính xin chư Tôn linh, Kính cáo Táo phủ thần quân, Ngũ tự gia thần. Kính mời Gia đường tiên linh Khảo, Tỷ, Bá, Thúc, Huynh, Đệ, Cô, Di Tỷ, Muội, Nội Ngoại chân linh, lai đáo đàng tiền chứng minh công đức thọ hưởng lễ vật.
 
 ✨ **CUNG DUY**:
-${specificLyrics}
+${lyricsBody}
 
 📅 **Hôm nay là ngày**: ${lunarFull}
 Kính xin chư vị Tôn thần cho phép ông bà tổ tiên chúng con được nhập linh sàng để con cháu được phụng thờ, hương khói.
