@@ -34,19 +34,24 @@ interface SessionData {
     | 'waiting_for_horoscope_range'
     | 'reading_book_section';
   context: 'nhansu' | 'danhba' | 'giapha' | 'thuchi' | 'meetings' | 'books' | 'reminders' | 'horoscope' | 'idle';
-  editingContactId?: number;
-  editingRelativeId?: number;
-  editingField?: string;
-  thuchiType?: 'thu' | 'chi';
+  
   selectedGoalId?: number;
   selectedGoalName?: string;
+  thuchiType?: 'thu' | 'chi';
+
   selectedMeetingTypeId?: number;
   selectedMeetingTypeName?: string;
-  selectedMeetingDate?: string; // MM/YYYY
+  selectedMeetingDate?: string;
   selectedMeetingId?: number;
+
   selectedBookId?: number;
   selectedBookTitle?: string;
+
   selectedTaskType?: string;
+
+  selectedContactId?: number;
+  selectedRelativeId?: number;
+  selectedField?: string;
 }
 
 type MyContext = Context & SessionFlavor<SessionData>;
@@ -259,6 +264,33 @@ bot.on('message:text', async (ctx) => {
   if (text === '🌳 Gia phả') {
     ctx.session.step = 'idle'; ctx.session.context = 'giapha';
     return ctx.reply('🌳 **Gia phả dòng họ** hành động nào?', { parse_mode: 'Markdown', reply_markup: GIAPHA_KEYBOARD });
+  }
+
+  // --- Danh bạ Handlers ---
+  if (text === '🔍 Tìm liên lạc' && ctx.session.context === 'danhba') {
+    ctx.session.step = 'waiting_for_contact_search';
+    return ctx.reply('🔍 Nhập **tên** hoặc **chức vụ** liên lạc cần tìm:', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
+  }
+
+  if (text === '➕ Thêm mới' && ctx.session.context === 'danhba') {
+    ctx.session.step = 'waiting_for_new_contact_data';
+    return ctx.reply('📝 **NHẬP LIÊN LẠC MỚI**\nHãy nhập theo định dạng:\n`Họ tên, Chức vụ, Di động, ĐT bàn, Năm sinh`\n\n✅ Ví dụ: `Nguyễn Văn A, Trưởng phòng, 0905123456, 02363123456, 1980`', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
+  }
+
+  if (text === '✏️ Sửa thông tin' && ctx.session.context === 'danhba') {
+    ctx.session.step = 'waiting_for_edit_contact_search';
+    return ctx.reply('🔍 Nhập tên liên lạc bạn muốn **Sửa thông tin**:');
+  }
+
+  // --- Gia phả Handlers ---
+  if (text === '🔍 Tìm thành viên' && ctx.session.context === 'giapha') {
+    ctx.session.step = 'waiting_for_genealogy_search';
+    return ctx.reply('🔍 Nhập tên thành viên gia tộc cần tìm:', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
+  }
+
+  if (text === '✏️ Sửa thông tin' && ctx.session.context === 'giapha') {
+    ctx.session.step = 'waiting_for_edit_giapha_search';
+    return ctx.reply('🔍 Nhập tên thành viên bạn muốn **Cập nhật thông tin**:');
   }
 
   if (text === '💰 Thu chi') {
@@ -714,8 +746,62 @@ bot.on('message:text', async (ctx) => {
       return ctx.reply(resp, { parse_mode: 'Markdown', reply_markup: MAIN_KEYBOARD });
     }
 
-    if (step === 'waiting_for_name') { ctx.session.step = 'idle'; return executeSearch(ctx, 'full_name', text, 'tên'); }
     if (step === 'waiting_for_genealogy_search') { ctx.session.step = 'idle'; return executeGiaphaSearch(ctx, text); }
+
+    // --- Danh bạ Processing ---
+    if (step === 'waiting_for_contact_search' || step === 'waiting_for_edit_contact_search') {
+      const { data, error } = await supabase.from('danhba').select('*').or(`full_name.ilike.%${text}%,position.ilike.%${text}%`).limit(10);
+      if (error) return ctx.reply('❌ Lỗi: ' + error.message);
+      if (!data || data.length === 0) return ctx.reply(`¯\\_(ツ)_/¯ Không tìm thấy liên lạc nào khớp với "${text}".`);
+      
+      const isEdit = step === 'waiting_for_edit_contact_search';
+      for (const contact of data) {
+        const keyboard = isEdit ? new InlineKeyboard().text('✏️ Sửa người này', `edit_contact:${contact.id}`) : undefined;
+        await ctx.reply(formatContact(contact), { parse_mode: 'Markdown', reply_markup: keyboard });
+      }
+      if (!isEdit) ctx.session.step = 'idle';
+      return;
+    }
+
+    if (step === 'waiting_for_new_contact_data') {
+      const p = text.split(',').map(s => s.trim());
+      if (p.length < 1) return ctx.reply('❌ Vui lòng nhập ít nhất là Họ tên.');
+      const { error } = await supabase.from('danhba').insert({
+        full_name: p[0], position: p[1] || '', mobile: p[2] || '', landline: p[3] || '', birth_year: p[4] || ''
+      });
+      if (error) return ctx.reply('❌ Lỗi: ' + error.message);
+      ctx.session.step = 'idle';
+      return ctx.reply(`✅ Đã lưu liên lạc: **${p[0]}** vào danh bạ!`, { reply_markup: DANHBA_KEYBOARD });
+    }
+
+    // --- Gia phả Edit Search ---
+    if (step === 'waiting_for_edit_giapha_search') {
+      const { data, error } = await supabase.from('giapha').select('*').ilike('full_name', `%${text}%`).limit(5);
+      if (error) return ctx.reply('❌ Lỗi: ' + error.message);
+      if (!data || data.length === 0) return ctx.reply(`¯\\_(ツ)_/¯ Không tìm thấy khớp với "${text}".`);
+      
+      for (const relative of data) {
+        const formatted = await formatRelative(relative);
+        const keyboard = new InlineKeyboard().text('✏️ Cập nhật thông tin', `edit_giapha:${relative.id}`);
+        await ctx.reply(formatted, { parse_mode: 'Markdown', reply_markup: keyboard });
+      }
+      return;
+    }
+
+    // --- Database Update Logic for Edits ---
+    if (step === 'waiting_for_edit_value' && ctx.session.selectedContactId && ctx.session.selectedField) {
+      const { error } = await supabase.from('danhba').update({ [ctx.session.selectedField]: text }).eq('id', ctx.session.selectedContactId);
+      if (error) return ctx.reply('❌ Lỗi cập nhật: ' + error.message);
+      ctx.session.step = 'idle';
+      return ctx.reply(`✅ Đã cập nhật trường **${ctx.session.selectedField}**!`, { reply_markup: DANHBA_KEYBOARD });
+    }
+
+    if (step === 'waiting_for_giapha_edit_value' && ctx.session.selectedRelativeId && ctx.session.selectedField) {
+      const { error } = await supabase.from('giapha').update({ [ctx.session.selectedField]: text }).eq('id', ctx.session.selectedRelativeId);
+      if (error) return ctx.reply('❌ Lỗi cập nhật: ' + error.message);
+      ctx.session.step = 'idle';
+      return ctx.reply(`✅ Đã cập nhật **${ctx.session.selectedField}** thành công!`, { reply_markup: GIAPHA_KEYBOARD });
+    }
   }
 
   if (!text.startsWith('/') && ctx.session.context === 'idle' && text.length > 2) { return executeSearch(ctx, 'full_name', text, 'tìm nhanh'); }
@@ -784,6 +870,46 @@ bot.on('callback_query:data', async (ctx) => {
     ctx.session.step = 'waiting_for_horoscope_range';
     await ctx.answerCallbackQuery();
     return ctx.reply('📌 Bạn đã chọn loại việc này.\nHãy nhập khoảng thời gian bạn muốn xem:\n`(Ví dụ: 12/04/2026-12/05/2026)`');
+  }
+
+  // --- Contact Edit Callback ---
+  if (data.startsWith('edit_contact:')) {
+    const id = parseInt(data.split(':')[1]);
+    ctx.session.selectedContactId = id;
+    const keyboard = new InlineKeyboard()
+      .text('👤 Họ tên', `cfield:full_name`).text('💼 Chức vụ', `cfield:position`).row()
+      .text('📱 Di động', `cfield:mobile`).text('☎️ ĐT bàn', `cfield:landline`).row()
+      .text('📅 Năm sinh', `cfield:birth_year`);
+    await ctx.answerCallbackQuery();
+    return ctx.reply('📝 **SỬA LIÊN LẠC**\nChọn trường bạn muốn thay đổi:', { reply_markup: keyboard });
+  }
+
+  if (data.startsWith('cfield:')) {
+    const field = data.split(':')[1];
+    ctx.session.selectedField = field;
+    ctx.session.step = 'waiting_for_edit_value';
+    await ctx.answerCallbackQuery();
+    return ctx.reply(`👉 Nhập nội dung mới cho trường **${field}**:`);
+  }
+
+  // --- Gia phả Edit Callback ---
+  if (data.startsWith('edit_giapha:')) {
+    const id = parseInt(data.split(':')[1]);
+    ctx.session.selectedRelativeId = id;
+    const keyboard = new InlineKeyboard()
+      .text('🌳 Họ tên', `gfield:full_name`).text('📅 Ngày sinh', `gfield:birth_day`).row()
+      .text('🪦 Ngày mất', `gfield:death_day`).text('👩‍❤️‍👨 Bạn đời', `gfield:spouse_name`).row()
+      .text('👫 Giới tính', `gfield:gender`);
+    await ctx.answerCallbackQuery();
+    return ctx.reply('📝 **CẬP NHẬT GIA PHẢ**\nChọn thông tin cần sửa:', { reply_markup: keyboard });
+  }
+
+  if (data.startsWith('gfield:')) {
+    const field = data.split(':')[1];
+    ctx.session.selectedField = field;
+    ctx.session.step = 'waiting_for_giapha_edit_value';
+    await ctx.answerCallbackQuery();
+    return ctx.reply(`👉 Nhập giá trị mới cho **${field}**:`);
   }
 
   await ctx.answerCallbackQuery();
