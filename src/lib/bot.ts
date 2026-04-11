@@ -162,7 +162,7 @@ const MEETING_DATE_DASHBOARD_KEYBOARD = new Keyboard()
 const RESUME_MAIN_KEYBOARD = new Keyboard()
   .text('🎓 Đào tạo & Bồi dưỡng').row()
   .text('🏆 Khen thưởng & Kỷ luật').row()
-  .text('👨‍👩‍👧‍👦 Gia định & Quan hệ').row()
+  .text('👨‍👩‍👧‍👦 Gia đình & Quan hệ').row()
   .text('⬅️ Quay lại')
   .resized();
 
@@ -313,6 +313,26 @@ bot.on('message:text', async (ctx) => {
     return ctx.reply('🔍 **TÌM KIẾM NHÂN SỰ**\nBạn muốn tìm kiếm theo tiêu chí nào?', { reply_markup: SEARCH_KEYBOARD });
   }
 
+  if (text === '👤 Tìm theo tên' && ctx.session.context === 'nhansu') {
+    ctx.session.step = 'waiting_for_name';
+    return ctx.reply('🔍 Nhập **Họ và tên** nhân sự cần tìm:', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
+  }
+
+  if (text === '📅 Lọc năm sinh' && ctx.session.context === 'nhansu') {
+    ctx.session.step = 'waiting_for_year';
+    return ctx.reply('🔍 Nhập **Năm sinh** cần lọc (ví dụ: 1985):', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
+  }
+
+  if (text === '🎓 Lọc trình độ' && ctx.session.context === 'nhansu') {
+    ctx.session.step = 'waiting_for_education';
+    return ctx.reply('🔍 Nhập **Trình độ đào tạo** cần tìm (ví dụ: Đại học):', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
+  }
+
+  if (text === '💊 Lọc chuyên môn' && ctx.session.context === 'nhansu') {
+    ctx.session.step = 'waiting_for_specialty';
+    return ctx.reply('🔍 Nhập **Chuyên môn/Chuyên ngành** cần tìm:', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
+  }
+
   // --- Danh bạ Handlers ---
   if (text === '📖 Danh bạ' && (ctx.session.context === 'work_menu' || ctx.session.context === 'danhba')) {
     ctx.session.context = 'danhba';
@@ -424,7 +444,7 @@ bot.on('message:text', async (ctx) => {
     const personalGroup = ['giapha', 'thuchi', 'books', 'horoscope'];
 
     if (ctx.session.context === 'thuchi' && ctx.session.selectedGoalId) {
-        if (ctx.session.step === 'thuchi_main' || ctx.session.step === 'selecting_goal_for_input') {
+        if (ctx.session.step === 'thuchi_main' || ctx.session.step === 'selecting_goal_for_input' || ctx.session.step === 'idle') {
              ctx.session.selectedGoalId = undefined; ctx.session.selectedGoalName = undefined; ctx.session.step = 'thuchi_main';
              return ctx.reply('💰 **QUẢN LÝ THU CHI**\nChọn thao tác bạn muốn thực hiện:', { reply_markup: THUCHI_MAIN_KEYBOARD });
         }
@@ -830,7 +850,12 @@ bot.on('message:text', async (ctx) => {
       return ctx.reply(resp, { parse_mode: 'Markdown', reply_markup: MAIN_KEYBOARD });
     }
 
-    if (step === 'waiting_for_genealogy_search') { ctx.session.step = 'idle'; return executeGiaphaSearch(ctx, text); }
+    if (step === 'waiting_for_name') { return executeSearch(ctx, 'full_name', text, 'Tìm theo tên'); }
+    if (step === 'waiting_for_year') { return executeSearch(ctx, 'date_of_birth', text, 'Lọc năm sinh'); }
+    if (step === 'waiting_for_education') { return executeSearch(ctx, 'education_level', text, 'Lọc trình độ'); }
+    if (step === 'waiting_for_specialty') { return executeSearch(ctx, 'specialization', text, 'Lọc chuyên môn'); }
+
+    if (step === 'waiting_for_genealogy_search') { return executeGiaphaSearch(ctx, text); }
 
     // --- Danh bạ Processing ---
     if (step === 'waiting_for_contact_search' || step === 'waiting_for_edit_contact_search') {
@@ -954,7 +979,19 @@ bot.on('message:text', async (ctx) => {
     }
   }
 
-  if (!text.startsWith('/') && ctx.session.context === 'idle' && text.length > 2) { return executeSearch(ctx, 'full_name', text, 'tìm nhanh'); }
+  // --- Quick Search Fallback (if no specific step) ---
+  if (!text.startsWith('/') && step === 'idle') {
+    if (ctx.session.context === 'nhansu' && text.length > 1) return executeSearch(ctx, 'full_name', text, 'tìm nhanh');
+    if (ctx.session.context === 'danhba' && text.length > 1) {
+       const { data } = await supabase.from('danhba').select('*').or(`full_name.ilike.%${text}%,position.ilike.%${text}%`).limit(10);
+       if (data && data.length > 0) {
+           for (const contact of data) await ctx.reply(formatContact(contact), { parse_mode: 'Markdown' });
+           return;
+       }
+    }
+    if (ctx.session.context === 'giapha' && text.length > 1) return executeGiaphaSearch(ctx, text);
+    if (ctx.session.context === 'idle' && text.length > 2) return executeSearch(ctx, 'full_name', text, 'tìm nhanh');
+  }
 });
 
 // --- Callback Query Handlers ---
@@ -981,19 +1018,33 @@ bot.on('callback_query:data', async (ctx) => {
       
     if (error) return ctx.reply('❌ Lỗi chi tiết: ' + error.message);
     
-    const actTotals: Record<string, { name: string, total: number }> = {};
-    details.forEach((row: any) => {
+    // Group by activity then task_types
+    const { data: rawDetails } = await supabase
+      .from('pe_expenses')
+      .select('activity_code, pe_activities(name), task_code, pe_task_types(name), qty, price, total')
+      .eq('year', parseInt(year))
+      .eq('project_code', code)
+      .order('activity_code');
+
+    const activityGroups: Record<string, { name: string, items: any[] }> = {};
+    rawDetails?.forEach((row: any) => {
       const aCode = row.activity_code;
       const aName = row.pe_activities?.name || aCode;
-      if (!actTotals[aCode]) actTotals[aCode] = { name: aName, total: 0 };
-      actTotals[aCode].total += row.total;
+      if (!activityGroups[aCode]) activityGroups[aCode] = { name: aName, items: [] };
+      activityGroups[aCode].items.push(row);
     });
     
     let msg = `📂 **CHI TIẾT DỰ ÁN ${code} - ${year}**\n\n`;
-    Object.entries(actTotals).forEach(([aCode, data]) => {
-      msg += `📍 **${data.name}**\n💰 Tổng: \`${data.total.toLocaleString('vi-VN')}k\`\n\n`;
+    Object.entries(activityGroups).forEach(([aCode, group]) => {
+      msg += `📍 **${group.name}**\n`;
+      group.items.forEach(item => {
+        const tName = item.pe_task_types?.name || item.task_code;
+        msg += `  ▫️ ${tName} ${item.qty} x ${item.price?.toLocaleString('vi-VN')} = **${item.total?.toLocaleString('vi-VN')}**\n`;
+      });
+      const groupTotal = group.items.reduce((sum, i) => sum + (i.total || 0), 0);
+      msg += `💰 **Cộng: ${groupTotal.toLocaleString('vi-VN')}**\n\n`;
     });
-    msg += `\n_(Đơn vị: nghìn đồng)_`;
+    msg += `_(Đơn vị: nghìn đồng)_`;
     await ctx.answerCallbackQuery();
     return ctx.reply(msg, { parse_mode: 'Markdown' });
   }
