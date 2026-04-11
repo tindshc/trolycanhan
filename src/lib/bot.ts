@@ -1,7 +1,8 @@
 import { Bot, Context, session, SessionFlavor, Keyboard, InlineKeyboard } from 'grammy';
 import { supabase } from './supabase';
-import { getSolarDate } from './lunar';
+import { getSolarDate, getLunarDate } from './lunar';
 import { rankAuspiciousDays, TASK_LIST, TaskType } from './horoscope';
+import { generatePrayerOutdoor } from './vancung';
 
 // Define session interface
 interface SessionData {
@@ -32,7 +33,10 @@ interface SessionData {
     | 'waiting_for_reminder_input'
     | 'waiting_for_reminder_search'
     | 'waiting_for_horoscope_range'
-    | 'reading_book_section';
+    | 'reading_book_section'
+    | 'waiting_for_vancung_type'
+    | 'waiting_for_vancung_date'
+    | 'waiting_for_vancung_location';
   context: 'nhansu' | 'danhba' | 'giapha' | 'thuchi' | 'meetings' | 'books' | 'reminders' | 'horoscope' | 'idle';
   
   selectedGoalId?: number;
@@ -51,7 +55,11 @@ interface SessionData {
 
   selectedContactId?: number;
   selectedRelativeId?: number;
+  selectedContactId?: number;
+  selectedRelativeId?: number;
   selectedField?: string;
+
+  selectedVancungType?: string;
 }
 
 type MyContext = Context & SessionFlavor<SessionData>;
@@ -73,7 +81,8 @@ const MAIN_KEYBOARD = new Keyboard()
   .text('🌳 Gia phả').text('💰 Thu chi').row()
   .text('📝 Biên bản họp').text('📋 Lí lịch cá nhân').row()
   .text('📚 Đọc sách').text('💡 Nhắc việc').row()
-  .text('📅 Xem ngày tốt').text('❓ Trợ giúp').row()
+  .text('📅 Xem ngày tốt').text('📜 Văn cúng').row()
+  .text('❓ Trợ giúp').row()
   .resized();
 
 const SEARCH_KEYBOARD = new Keyboard()
@@ -162,6 +171,19 @@ const HOROSCOPE_KEYBOARD = new InlineKeyboard()
   .text('💍 Đám cưới/Hỏi', 'h_task:wedding').row()
   .text('📝 Hợp đồng/Giao dịch', 'h_task:contract').row()
   .text('🏮 Cúng bái/Tế tự', 'h_task:worship').row();
+
+// Văn cúng Keyboards
+const VANCUNG_TYPE_KEYBOARD = new Keyboard()
+  .text('🍱 Kỵ cơm').text('🍎 Cúng ông Táo').row()
+  .text('🎇 Giao thừa').text('🎉 Tất niên').row()
+  .text('👋 Tiễn ông bà').text('🍼 Đầy tháng').row()
+  .text('🏛️ Nhà thờ').text('⬅️ Quay lại').row()
+  .resized();
+
+const VANCUNG_LOC_KEYBOARD = new Keyboard()
+  .text('🏡 Ngoài sân').text('🏠 Trong nhà').row()
+  .text('⬅️ Quay lại')
+  .resized();
 
 // Help text
 const HELP_TEXT = `
@@ -335,6 +357,12 @@ bot.on('message:text', async (ctx) => {
     ctx.session.step = 'idle';
     ctx.session.context = 'horoscope';
     return ctx.reply('📅 **XEM NGÀY LÀNH THÁNG TỐT**\nChọn loại công việc bạn muốn xem ngày:', { reply_markup: HOROSCOPE_KEYBOARD });
+  }
+
+  if (text === '📜 Văn cúng') {
+    ctx.session.step = 'waiting_for_vancung_type';
+    ctx.session.context = 'idle';
+    return ctx.reply('📜 **TRỢ LÝ VĂN CÚNG TÂM LINH**\nChọn loại nghi lễ bạn thực hiện:', { reply_markup: VANCUNG_TYPE_KEYBOARD });
   }
 
   if (text === '🔍 Tìm nội dung' && ctx.session.context === 'meetings') {
@@ -801,6 +829,37 @@ bot.on('message:text', async (ctx) => {
       if (error) return ctx.reply('❌ Lỗi cập nhật: ' + error.message);
       ctx.session.step = 'idle';
       return ctx.reply(`✅ Đã cập nhật **${ctx.session.selectedField}** thành công!`, { reply_markup: GIAPHA_KEYBOARD });
+    }
+
+    // --- Văn cúng Wizard Flow ---
+    if (step === 'waiting_for_vancung_type') {
+      if (text === '⬅️ Quay lại') { ctx.session.step = 'idle'; return ctx.reply('Đã hủy.', { reply_markup: MAIN_KEYBOARD }); }
+      ctx.session.selectedVancungType = text;
+      ctx.session.step = 'waiting_for_vancung_date';
+      return ctx.reply(`👌 Bạn chọn: **${text}**\nNhập ngày thực hiện (Dương lịch, ví dụ: 11/04/2026):`, { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
+    }
+
+    if (step === 'waiting_for_vancung_date') {
+      const match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (!match) return ctx.reply('❌ Định dạng ngày sai. Hãy nhập DD/MM/YYYY (ví dụ: 11/04/2026)');
+      const [d, m, y] = match.slice(1).map(Number);
+      const lunar = getLunarDate(d, m, y);
+      ctx.session.selectedMeetingDate = text; // Reuse for solar date storage
+      ctx.session.step = 'waiting_for_vancung_location';
+      return ctx.reply(`📅 Ngày âm lịch: **${lunar.day}/${lunar.month}** năm **${lunar.year}**\nChọn nơi thực hiện lễ cúng:`, { reply_markup: VANCUNG_LOC_KEYBOARD });
+    }
+
+    if (step === 'waiting_for_vancung_location') {
+      if (text === '🏡 Ngoài sân') {
+          const solar = ctx.session.selectedMeetingDate!.split('/').map(Number);
+          const lunar = getLunarDate(solar[0], solar[1], solar[2]);
+          const result = generatePrayerOutdoor(ctx.session.selectedVancungType!, lunar);
+          ctx.session.step = 'idle';
+          return ctx.reply(result, { parse_mode: 'Markdown', reply_markup: MAIN_KEYBOARD });
+      }
+      if (text === '🏠 Trong nhà') {
+          return ctx.reply('Tính năng cúng **Trong nhà** đang được biên soạn nội dung. Hãy thử lại sau!');
+      }
     }
   }
 
