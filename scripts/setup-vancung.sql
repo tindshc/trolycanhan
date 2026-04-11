@@ -4,8 +4,6 @@ CREATE TABLE IF NOT EXISTS public.vancung_templates (
   ceremony_type TEXT NOT NULL,
   location TEXT NOT NULL, -- 'outdoor' or 'indoor'
   lyrics TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(ceremony_type, location)
 );
 
