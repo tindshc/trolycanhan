@@ -6,9 +6,17 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "import:nhansu": "tsx --env-file=.env.local scripts/import-nhansu.ts",
+    "import:danhba": "tsx --env-file=.env.local scripts/import-danhba.ts",
+    "import:giapha": "tsx --env-file=.env.local scripts/import-giapha.ts",
+    "dev:bot": "tsx --env-file=.env.local scripts/run-bot-local.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.103.0",
+    "framer-motion": "^12.38.0",
+    "grammy": "^1.42.0",
+    "lucide-react": "^1.8.0",
     "next": "16.2.3",
     "react": "19.2.4",
     "react-dom": "19.2.4"
@@ -19,6 +27,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }
