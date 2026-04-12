@@ -402,7 +402,7 @@ bot.on('message:text', async (ctx) => {
   }
 
   // --- Danh bạ Handlers ---
-  if (text === '📖 Danh bạ' && (ctx.session.context === 'work_menu' || ctx.session.context === 'danhba')) {
+  if (text === '📖 Danh bạ') {
     ctx.session.context = 'danhba';
     return ctx.reply('📖 **DANH BẠ LIÊN LẠC**\nChọn thao tác:', { reply_markup: DANHBA_KEYBOARD });
   }
@@ -443,7 +443,7 @@ bot.on('message:text', async (ctx) => {
     return ctx.reply('💰 **QUẢN LÝ THU CHI**\nChọn thao tác bạn muốn thực hiện:', { parse_mode: 'Markdown', reply_markup: THUCHI_MAIN_KEYBOARD });
   }
 
-  if (text === '📝 Biên bản họp' && (ctx.session.context === 'work_menu' || ctx.session.context === 'meetings')) {
+  if (text === '📝 Biên bản họp') {
     ctx.session.step = 'idle';
     ctx.session.context = 'meetings';
     return ctx.reply('📝 **BIÊN BẢN HỌP**\nChọn loại hình hoặc tạo mới:', {
@@ -470,7 +470,7 @@ bot.on('message:text', async (ctx) => {
     return ctx.reply('📚 **THƯ VIỆN SÁCH**\nChọn sách bạn muốn đọc:', { reply_markup: keyboard });
   }
 
-  if (text === '💡 Nhắc việc' && (ctx.session.context === 'work_menu' || ctx.session.context === 'reminders')) {
+  if (text === '💡 Nhắc việc') {
     ctx.session.step = 'idle';
     ctx.session.context = 'reminders';
     return ctx.reply('💡 **TRỢ LÝ NHẮC VIỆC**\nTôi có thể giúp gì cho lịch trình của bạn hôm nay?', { reply_markup: REMINDER_MAIN_KEYBOARD });
@@ -488,7 +488,7 @@ bot.on('message:text', async (ctx) => {
     return ctx.reply('📜 **TRỢ LÝ VĂN CÚNG TÂM LINH**\nChọn loại nghi lễ bạn thực hiện:', { reply_markup: VANCUNG_TYPE_KEYBOARD });
   }
 
-  if (text === '📊 Kinh phí dự án' && (ctx.session.context === 'work_menu' || ctx.session.context === 'projects')) {
+  if (text === '📊 Kinh phí dự án') {
     ctx.session.step = 'waiting_for_expense_year';
     ctx.session.context = 'projects';
     return ctx.reply('📊 **QUẢN LÝ KINH PHÍ DỰ ÁN**\nVui lòng nhập năm ngân sách bạn muốn tra cứu (ví dụ: 2025):', {
@@ -506,13 +506,13 @@ bot.on('message:text', async (ctx) => {
     return ctx.reply(`🆕 **DỰ ÁN ${ctx.session.selectedProjectCode}**\nNhập **Mã hoạt động** mới (ví dụ: HD1):`, { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
   }
 
-  if (text === '📋 Mẫu văn bản' && (ctx.session.context === 'work_menu' || ctx.session.context === 'documents')) {
+  if (text === '📋 Mẫu văn bản') {
     ctx.session.step = 'idle';
     ctx.session.context = 'documents';
     return ctx.reply('📋 **DANH MỤC MẪU VĂN BẢN**\nChọn mẫu bạn cần soạn thảo:', { reply_markup: MAU_VAN_BAN_KEYBOARD });
   }
 
-  if (text === '✉️ Thư mời chào giá' && ctx.session.context === 'documents') {
+  if (text === '✉️ Thư mời chào giá') {
     ctx.session.step = 'waiting_for_doc_date';
     ctx.session.tempDocData = { type: 'thu_moi_chao_gia' };
     const today = new Date();
