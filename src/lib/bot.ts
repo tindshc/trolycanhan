@@ -858,7 +858,17 @@ bot.on('message:text', async (ctx) => {
 
     if (step === 'waiting_for_doc_deadline') {
       if (!ctx.session.tempDocData) ctx.session.tempDocData = { type: 'thu_moi_chao_gia' };
-      ctx.session.tempDocData.deadline = text;
+      
+      let deadlineValue = text;
+      // Handle format: 16h ngày 17/12/2026 or 16h30 17/12/2026
+      const dlMatch = text.match(/^(\d{1,2})h(\d{0,2})\s*(?:ngày)?\s*(\d{1,2})\/(\d{1,2})\/(\d{4})$/i);
+      if (dlMatch) {
+        const hour = dlMatch[1];
+        const minute = dlMatch[2] || '00';
+        deadlineValue = `${hour} giờ ${minute} ngày ${dlMatch[3]} tháng ${dlMatch[4]} năm ${dlMatch[5]}`;
+      }
+      
+      ctx.session.tempDocData.deadline = deadlineValue;
       ctx.session.step = 'waiting_for_doc_address';
       return ctx.reply('Bước 6: Nhập **Địa chỉ Trạm** (ví dụ: 163 Hải Phòng):\n_(Hệ thống tự thêm , Đà Nẵng)_', { 
         reply_markup: new Keyboard().text('163 Hải Phòng').row().text('⬅️ Quay lại').resized() 
