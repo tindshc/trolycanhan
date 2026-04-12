@@ -1177,7 +1177,6 @@ bot.on('message:text', async (ctx) => {
         ctx.session.step = 'idle'; return ctx.reply('✅ Đã cập nhật số tiền thực tế đã chi!', { reply_markup: ACTIVITY_DETAIL_KEYBOARD });
     }
   }
-  }
 
   // --- Quick Search Fallback (if no specific step) ---
   if (!text.startsWith('/') && step === 'idle') {
