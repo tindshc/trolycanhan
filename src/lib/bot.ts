@@ -813,31 +813,35 @@ bot.on('message:text', async (ctx) => {
     }
 
     if (step === 'waiting_for_doc_date') {
-      ctx.session.tempDocData!.date = text;
+      if (!ctx.session.tempDocData) ctx.session.tempDocData = { type: 'thu_moi_chao_gia' };
+      ctx.session.tempDocData.date = text;
       ctx.session.step = 'waiting_for_doc_service';
-      return ctx.reply('Bước 2: Nhập **Tên dịch vụ** cần mời chào giá:\nví dụ: `dịch vụ tuyên truyền (xe cổ động, pano, cờ nheo, cờ phướn)`', { 
+      return ctx.reply('Bước 2: Nhập **Tên dịch vụ** cần mời chào giá (nhấn nút dưới hoặc gõ tay):', { 
         reply_markup: new Keyboard().text('dịch vụ tuyên truyền (xe cổ động, pano, cờ nheo, cờ phướn)').row().text('⬅️ Quay lại').resized() 
       });
     }
 
     if (step === 'waiting_for_doc_service') {
-      ctx.session.tempDocData!.service = text;
+      if (!ctx.session.tempDocData) ctx.session.tempDocData = { type: 'thu_moi_chao_gia' };
+      ctx.session.tempDocData.service = text;
       ctx.session.step = 'waiting_for_doc_desc';
-      return ctx.reply('Bước 3: Nhập **Mô tả ngắn gọn** về nhu cầu:\nví dụ: `phục vụ hoạt động tại đơn vị`', { 
+      return ctx.reply('Bước 3: Nhập **Mô tả ngắn gọn** về nhu cầu:', { 
         reply_markup: new Keyboard().text('phục vụ hoạt động tại đơn vị').row().text('⬅️ Quay lại').resized() 
       });
     }
 
     if (step === 'waiting_for_doc_desc') {
-      ctx.session.tempDocData!.description = text;
+      if (!ctx.session.tempDocData) ctx.session.tempDocData = { type: 'thu_moi_chao_gia' };
+      ctx.session.tempDocData.description = text;
       ctx.session.step = 'waiting_for_doc_deadline';
-      return ctx.reply('Bước 4: Nhập **Thời gian nộp báo giá**:\nví dụ: `16 giờ 00 ngày 17 tháng 12 năm 2025`', { 
+      return ctx.reply('Bước 4: Nhập **Thời gian nộp báo giá**:', { 
         reply_markup: new Keyboard().text('16 giờ 00 ngày 17 tháng 12 năm 2025').row().text('⬅️ Quay lại').resized() 
       });
     }
 
     if (step === 'waiting_for_doc_deadline') {
-      ctx.session.tempDocData!.deadline = text;
+      if (!ctx.session.tempDocData) ctx.session.tempDocData = { type: 'thu_moi_chao_gia' };
+      ctx.session.tempDocData.deadline = text;
       ctx.session.step = 'waiting_for_doc_address';
       return ctx.reply('Bước 5: Nhập **Địa chỉ Trạm** (mặc định Hòa Cường):', { 
         reply_markup: new Keyboard().text('Trạm Y tế Phường Hòa Cường').row().text('⬅️ Quay lại').resized() 
@@ -845,7 +849,8 @@ bot.on('message:text', async (ctx) => {
     }
 
     if (step === 'waiting_for_doc_address') {
-      ctx.session.tempDocData!.address = text;
+      if (!ctx.session.tempDocData) ctx.session.tempDocData = { type: 'thu_moi_chao_gia' };
+      ctx.session.tempDocData.address = text;
       ctx.session.step = 'waiting_for_doc_phone';
       return ctx.reply('Bước 6: Nhập **Số điện thoại liên hệ**:', { 
         reply_markup: new Keyboard().text('0236.3868949').row().text('⬅️ Quay lại').resized() 
@@ -853,8 +858,9 @@ bot.on('message:text', async (ctx) => {
     }
 
     if (step === 'waiting_for_doc_phone') {
-      ctx.session.tempDocData!.phone = text;
-      const doc = generateInvitationToQuote(ctx.session.tempDocData!);
+      if (!ctx.session.tempDocData) return ctx.reply('⚠️ Lỗi: Phiên làm việc bị mất dữ liệu. Vui lòng bấm vào mẫu văn bản để soạn lại từ đầu.');
+      ctx.session.tempDocData.phone = text;
+      const doc = generateInvitationToQuote(ctx.session.tempDocData);
       
       // Save to Supabase
       const { error } = await supabase.from('document_records').insert({
