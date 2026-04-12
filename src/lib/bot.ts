@@ -98,8 +98,28 @@ if (!token) {
 
 export const bot = new Bot<MyContext>(token || '');
 
-// Initialize session with default value
-bot.use(session({ initial: (): SessionData => ({ step: 'idle', context: 'idle' }) }));
+// --- Persistent Session Middleware (Supabase) ---
+bot.use(async (ctx, next) => {
+  const chatId = ctx.chat?.id.toString();
+  if (!chatId) return next();
+
+  // 1. Load session from Supabase
+  const { data, error } = await supabase.from('bot_sessions').select('data').eq('id', chatId).single();
+  
+  // 2. Initialize ctx.session (if not found, start fresh)
+  // @ts-ignore - Manually injecting session into context
+  ctx.session = data?.data || { step: 'idle', context: 'idle' };
+
+  // 3. Run handlers
+  await next();
+
+  // 4. Save session back to Supabase (Upsert)
+  await supabase.from('bot_sessions').upsert({ 
+    id: chatId, 
+    data: ctx.session,
+    updated_at: new Date().toISOString()
+  });
+});
 
 // --- Keyboards ---
 const MAIN_KEYBOARD = new Keyboard()
