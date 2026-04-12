@@ -37,8 +37,12 @@ interface SessionData {
     | 'waiting_for_vancung_type'
     | 'waiting_for_vancung_date'
     | 'waiting_for_vancung_location'
-    | 'waiting_for_expense_year';
-  context: 'nhansu' | 'danhba' | 'giapha' | 'thuchi' | 'meetings' | 'books' | 'reminders' | 'horoscope' | 'projects' | 'work_menu' | 'personal_menu' | 'idle';
+    | 'waiting_for_expense_year' | 'waiting_for_new_project_code' | 'waiting_for_new_project_name'
+    | 'waiting_for_new_activity_code' | 'waiting_for_new_activity_name'
+    | 'waiting_for_new_expense_data' | 'waiting_for_expense_spent'
+    | 'waiting_for_doc_date' | 'waiting_for_doc_service' | 'waiting_for_doc_desc'
+    | 'waiting_for_doc_deadline' | 'waiting_for_doc_address' | 'waiting_for_doc_phone';
+  context: 'nhansu' | 'danhba' | 'giapha' | 'thuchi' | 'meetings' | 'books' | 'reminders' | 'horoscope' | 'projects' | 'work_menu' | 'personal_menu' | 'documents' | 'idle';
   
   selectedGoalId?: number;
   selectedGoalName?: string;
@@ -60,6 +64,20 @@ interface SessionData {
 
   selectedVancungType?: string;
   selectedExpenseYear?: number;
+  selectedProjectCode?: string;
+  selectedActivityCode?: string;
+  selectedExpenseId?: number;
+  tempProjectCode?: string;
+  tempActivityCode?: string;
+  tempDocData?: {
+    type: string;
+    date?: string;
+    service?: string;
+    description?: string;
+    deadline?: string;
+    address?: string;
+    phone?: string;
+  };
 }
 
 type MyContext = Context & SessionFlavor<SessionData>;
@@ -84,13 +102,19 @@ const MAIN_KEYBOARD = new Keyboard()
 const CONG_VIEC_KEYBOARD = new Keyboard()
   .text('🔍 Tìm nhân sự').text('📖 Danh bạ').row()
   .text('📝 Biên bản họp').text('📊 Kinh phí dự án').row()
-  .text('💡 Nhắc việc').text('⬅️ Quay lại').row()
+  .text('📋 Mẫu văn bản').text('💡 Nhắc việc').row()
+  .text('⬅️ Quay lại').row()
   .resized();
 
 const CA_NHAN_KEYBOARD = new Keyboard()
   .text('🌳 Gia phả').text('💰 Thu chi').row()
   .text('📋 Lí lịch cá nhân').text('📚 Đọc sách').row()
   .text('📅 Xem ngày tốt').text('📜 Văn cúng').row()
+  .text('⬅️ Quay lại')
+  .resized();
+
+const MAU_VAN_BAN_KEYBOARD = new Keyboard()
+  .text('✉️ Thư mời chào giá').row()
   .text('⬅️ Quay lại')
   .resized();
 
@@ -164,6 +188,18 @@ const RESUME_MAIN_KEYBOARD = new Keyboard()
   .text('🏆 Khen thưởng & Kỷ luật').row()
   .text('👨‍👩‍👧‍👦 Gia đình & Quan hệ').row()
   .text('⬅️ Quay lại')
+  .resized();
+
+const PROJECT_MAIN_KEYBOARD = new Keyboard()
+  .text('➕ Thêm Dự án').text('⬅️ Quay lại')
+  .resized();
+
+const PROJECT_DETAIL_KEYBOARD = new Keyboard()
+  .text('➕ Thêm Hoạt động').text('⬅️ Quay lại')
+  .resized();
+
+const ACTIVITY_DETAIL_KEYBOARD = new Keyboard()
+  .text('➕ Thêm Dự toán').text('⬅️ Quay lại')
   .resized();
 
 // Reminder Keyboards
@@ -244,6 +280,33 @@ async function formatRelative(r: any) {
   return text;
 }
 
+function generateInvitationToQuote(data: any) {
+  return `CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+Độc lập – Tự do – Hạnh phúc
+
+Hòa Cường, ngày ${data.date}
+
+**THƯ MỜI**
+**V/v mời chào giá cung cấp ${data.service}**
+
+Kính gửi: Các đơn vị cung cấp dịch vụ ${data.service}.
+
+Hiện nay, Trạm Y tế Phường Hòa Cường có nhu cầu lựa chọn đơn vị cung cấp ${data.description} phục vụ hoạt động tại đơn vị.
+Để có cơ sở mua sắm, Trạm Y tế Phường Hòa Cường kính mời các đơn vị quan tâm, có đầy đủ tư cách pháp nhân, đủ điều kiện theo quy định của pháp luật tham gia chào giá với nội dung như sau:
+
+Đơn vị cung cấp Bảng báo giá theo mẫu tại Phụ lục đính kèm. Người ký báo giá phải là người đại diện theo pháp luật hoặc người được ủy quyền (kèm giấy ủy quyền).
+Báo giá phải được bỏ vào phong bì, niêm phong kín ở miệng bao bằng dấu của đơn vị tham gia báo giá để bảo mật và tạo sự khách quan trong việc mời báo giá, bên ngoài phong bì phải ghi rõ nội dung là CHÀO GIÁ THEO THƯ MỜI SỐ ………/TM-TYT để tiện theo dõi.
+Thời gian nộp: Hạn cuối lúc ${data.deadline}.
+Các báo giá nhận được sau thời điểm trên sẽ không được xem xét.
+
+Nơi nhận: Khoa Dân số - Trạm Y tế Phường Hòa Cường.
+Địa chỉ: ${data.address}.
+Số điện thoại liên hệ: ${data.phone} (vào giờ hành chính).
+
+Rất mong sự hồi đáp của Quý đơn vị.
+Xin chân thành cảm ơn.`;
+}
+
 // --- Logic Handlers ---
 async function executeGiaphaSearch(ctx: MyContext, value: string) {
   const { data, error } = await supabase.from('giapha').select('*').ilike('full_name', `%${value}%`).limit(5);
@@ -258,17 +321,22 @@ async function executeGiaphaSearch(ctx: MyContext, value: string) {
 async function executeSearch(ctx: MyContext, column: string, value: string, title: string) {
   let query = supabase.from('nhansu').select('*');
   if (column === 'date_of_birth') {
-    const year = value.trim();
-    if (/^\d{4}$/.test(year)) query = query.gte('date_of_birth', `${year}-01-01`).lte('date_of_birth', `${year}-12-31`);
-    else query = query.eq('date_of_birth', value);
+    const v = value.trim();
+    if (/^\d{4}$/.test(v)) query = query.gte('date_of_birth', `${v}-01-01`).lte('date_of_birth', `${v}-12-31`);
+    else if (/^\d{2}\/\d{2}\/\d{4}$/.test(v)) {
+        const [d, m, y] = v.split('/');
+        query = query.eq('date_of_birth', `${y}-${m}-${d}`);
+    } else query = query.eq('date_of_birth', value);
   } else query = query.ilike(column, `%${value}%`);
 
   const { data, error } = await query.limit(10);
-  if (error) return ctx.reply('❌ Lỗi: ' + error.message);
+  if (error) return ctx.reply('❌ Lỗi tra cứu: ' + error.message);
   if (!data || data.length === 0) return ctx.reply(`¯\\_(ツ)_/¯ Không tìm thấy khớp với "${value}".`);
 
   let response = `📊 **Kết quả ${title} cho "${value}":**\n\n` + data.map(p => formatPerson(p)).join('\n---\n\n');
   if (data.length === 10) response += `\n*Lưu ý: Chỉ hiển thị 10 kết quả đầu tiên.*`;
+  
+  ctx.session.step = 'idle'; // Reset step after search
   return ctx.reply(response, { parse_mode: 'Markdown', reply_markup: SEARCH_KEYBOARD });
 }
 
@@ -428,6 +496,37 @@ bot.on('message:text', async (ctx) => {
     });
   }
 
+  if (text === '➕ Thêm Dự án' && ctx.session.context === 'projects') {
+    ctx.session.step = 'waiting_for_new_project_code';
+    return ctx.reply('🆕 **THÊM DỰ ÁN MỚI**\nNhập **Mã dự án** (ví dụ: DUAN1):', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
+  }
+
+  if (text === '➕ Thêm Hoạt động' && ctx.session.context === 'projects' && ctx.session.selectedProjectCode) {
+    ctx.session.step = 'waiting_for_new_activity_code';
+    return ctx.reply(`🆕 **DỰ ÁN ${ctx.session.selectedProjectCode}**\nNhập **Mã hoạt động** mới (ví dụ: HD1):`, { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
+  }
+
+  if (text === '📋 Mẫu văn bản' && (ctx.session.context === 'work_menu' || ctx.session.context === 'documents')) {
+    ctx.session.step = 'idle';
+    ctx.session.context = 'documents';
+    return ctx.reply('📋 **DANH MỤC MẪU VĂN BẢN**\nChọn mẫu bạn cần soạn thảo:', { reply_markup: MAU_VAN_BAN_KEYBOARD });
+  }
+
+  if (text === '✉️ Thư mời chào giá' && ctx.session.context === 'documents') {
+    ctx.session.step = 'waiting_for_doc_date';
+    ctx.session.tempDocData = { type: 'thu_moi_chao_gia' };
+    const today = new Date();
+    const dateStr = `${today.getDate()} tháng ${today.getMonth() + 1} năm ${today.getFullYear()}`;
+    return ctx.reply('✉️ **THƯ MỜI CHÀO GIÁ**\n\nBước 1: Nhập **Ngày soạn** thư mời (Ví dụ: 12 tháng 12 năm 2025):', { 
+      reply_markup: new Keyboard().text(dateStr).row().text('⬅️ Quay lại').resized() 
+    });
+  }
+
+  if (text === '➕ Thêm Dự toán' && ctx.session.context === 'projects' && ctx.session.selectedActivityCode) {
+    ctx.session.step = 'waiting_for_new_expense_data';
+    return ctx.reply('🆕 **THÊM DỰ TOÁN CHI TIẾT**\nNhập theo định dạng:\n`Mã Task, Số lượng, Đơn giá`\n\n✅ Ví dụ: `BCV, 13, 500`\n_(Mã Task có thể là BCV, NU, ...)_', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
+  }
+
   if (text === '🔍 Tìm nội dung' && ctx.session.context === 'meetings') {
     ctx.session.step = 'waiting_for_meeting_search';
     return ctx.reply('🔍 Nhập từ khóa bạn muốn tìm (Tìm trong tất cả loại hình & tiêu đề):');
@@ -440,7 +539,7 @@ bot.on('message:text', async (ctx) => {
 
   if (text === '⬅️ Quay lại') {
     // Hierarchical Navigation Logic
-    const workGroup = ['nhansu', 'danhba', 'meetings', 'projects', 'reminders'];
+    const workGroup = ['nhansu', 'danhba', 'meetings', 'projects', 'reminders', 'documents'];
     const personalGroup = ['giapha', 'thuchi', 'books', 'horoscope'];
 
     if (ctx.session.context === 'thuchi' && ctx.session.selectedGoalId) {
@@ -472,8 +571,14 @@ bot.on('message:text', async (ctx) => {
     }
 
     // Level 2 -> Level 1
+    if (ctx.session.context === 'projects') {
+       if (ctx.session.selectedExpenseId) { ctx.session.selectedExpenseId = undefined; ctx.session.step = 'idle'; return ctx.reply(`📂 **Hoạt động ${ctx.session.selectedActivityCode}**`, { reply_markup: ACTIVITY_DETAIL_KEYBOARD }); }
+       if (ctx.session.selectedActivityCode) { ctx.session.selectedActivityCode = undefined; ctx.session.step = 'idle'; return ctx.reply(`📂 **Dự án ${ctx.session.selectedProjectCode}**`, { reply_markup: PROJECT_DETAIL_KEYBOARD }); }
+       if (ctx.session.selectedProjectCode) { ctx.session.selectedProjectCode = undefined; ctx.session.step = 'idle'; return ctx.reply(`📊 **KINH PHÍ NĂM ${ctx.session.selectedExpenseYear}**`, { reply_markup: PROJECT_MAIN_KEYBOARD }); }
+    }
     if (workGroup.includes(ctx.session.context)) {
       ctx.session.context = 'work_menu'; ctx.session.step = 'idle';
+      if (ctx.session.tempDocData) delete ctx.session.tempDocData;
       return ctx.reply('💼 **DANH MỤC CÔNG VIỆC**', { reply_markup: CONG_VIEC_KEYBOARD });
     }
     if (personalGroup.includes(ctx.session.context)) {
@@ -705,6 +810,65 @@ bot.on('message:text', async (ctx) => {
       if (error) return ctx.reply('❌ Lỗi: ' + error.message);
       ctx.session.selectedMeetingTypeId = data.id; ctx.session.selectedMeetingTypeName = data.name; ctx.session.step = 'idle';
       return ctx.reply(`✅ Đã tạo Loại hình **${data.name}**!`, { reply_markup: MEETING_DASHBOARD_KEYBOARD });
+    }
+
+    if (step === 'waiting_for_doc_date') {
+      ctx.session.tempDocData!.date = text;
+      ctx.session.step = 'waiting_for_doc_service';
+      return ctx.reply('Bước 2: Nhập **Tên dịch vụ** cần mời chào giá:\nví dụ: `dịch vụ tuyên truyền (xe cổ động, pano, cờ nheo, cờ phướn)`', { 
+        reply_markup: new Keyboard().text('dịch vụ tuyên truyền (xe cổ động, pano, cờ nheo, cờ phướn)').row().text('⬅️ Quay lại').resized() 
+      });
+    }
+
+    if (step === 'waiting_for_doc_service') {
+      ctx.session.tempDocData!.service = text;
+      ctx.session.step = 'waiting_for_doc_desc';
+      return ctx.reply('Bước 3: Nhập **Mô tả ngắn gọn** về nhu cầu:\nví dụ: `phục vụ hoạt động tại đơn vị`', { 
+        reply_markup: new Keyboard().text('phục vụ hoạt động tại đơn vị').row().text('⬅️ Quay lại').resized() 
+      });
+    }
+
+    if (step === 'waiting_for_doc_desc') {
+      ctx.session.tempDocData!.description = text;
+      ctx.session.step = 'waiting_for_doc_deadline';
+      return ctx.reply('Bước 4: Nhập **Thời gian nộp báo giá**:\nví dụ: `16 giờ 00 ngày 17 tháng 12 năm 2025`', { 
+        reply_markup: new Keyboard().text('16 giờ 00 ngày 17 tháng 12 năm 2025').row().text('⬅️ Quay lại').resized() 
+      });
+    }
+
+    if (step === 'waiting_for_doc_deadline') {
+      ctx.session.tempDocData!.deadline = text;
+      ctx.session.step = 'waiting_for_doc_address';
+      return ctx.reply('Bước 5: Nhập **Địa chỉ Trạm** (mặc định Hòa Cường):', { 
+        reply_markup: new Keyboard().text('Trạm Y tế Phường Hòa Cường').row().text('⬅️ Quay lại').resized() 
+      });
+    }
+
+    if (step === 'waiting_for_doc_address') {
+      ctx.session.tempDocData!.address = text;
+      ctx.session.step = 'waiting_for_doc_phone';
+      return ctx.reply('Bước 6: Nhập **Số điện thoại liên hệ**:', { 
+        reply_markup: new Keyboard().text('0236.3868949').row().text('⬅️ Quay lại').resized() 
+      });
+    }
+
+    if (step === 'waiting_for_doc_phone') {
+      ctx.session.tempDocData!.phone = text;
+      const doc = generateInvitationToQuote(ctx.session.tempDocData!);
+      
+      // Save to Supabase
+      const { error } = await supabase.from('document_records').insert({
+        doc_type: 'invitation_to_quote',
+        fields: ctx.session.tempDocData,
+        content: doc,
+        chat_id: ctx.chat!.id.toString()
+      });
+
+      ctx.session.step = 'idle';
+      if (error) await ctx.reply('⚠️ Lưu vào database bị lỗi nhưng đây là văn bản của bạn:');
+      else await ctx.reply('✅ Đã soạn xong và lưu vào hệ thống:');
+
+      return await ctx.reply(doc, { reply_markup: MAU_VAN_BAN_KEYBOARD });
     }
 
     if (step === 'waiting_for_meeting_date') {
@@ -975,8 +1139,44 @@ bot.on('message:text', async (ctx) => {
         keyboard.text(`📂 Xem ${code}`, `exp_proj:${year}:${code}`).row();
       });
       msg += `\n_(Đơn vị: nghìn đồng)_\n\nChọn một dự án để xem chi tiết hoạt động:`;
-      return ctx.reply(msg, { parse_mode: 'Markdown', reply_markup: keyboard });
+      return ctx.reply(msg, { parse_mode: 'Markdown', reply_markup: PROJECT_MAIN_KEYBOARD });
     }
+
+    if (step === 'waiting_for_new_project_code') { ctx.session.tempProjectCode = text.trim(); ctx.session.step = 'waiting_for_new_project_name'; return ctx.reply('Nhập **Tên dự án**:'); }
+    if (step === 'waiting_for_new_project_name') {
+        const { error } = await supabase.from('pe_projects').insert({ code: ctx.session.tempProjectCode, name: text.trim() });
+        if (error) return ctx.reply('❌ Lỗi: ' + error.message);
+        ctx.session.step = 'idle'; return ctx.reply(`✅ Đã thêm dự án: **${text.trim()}**!`, { reply_markup: PROJECT_MAIN_KEYBOARD });
+    }
+
+    if (step === 'waiting_for_new_activity_code') { ctx.session.tempActivityCode = text.trim(); ctx.session.step = 'waiting_for_new_activity_name'; return ctx.reply('Nhập **Tên hoạt động**:'); }
+    if (step === 'waiting_for_new_activity_name') {
+        const { error } = await supabase.from('pe_activities').insert({ code: ctx.session.tempActivityCode, name: text.trim() });
+        if (error) return ctx.reply('❌ Lỗi: ' + error.message);
+        ctx.session.step = 'idle'; return ctx.reply(`✅ Đã thêm hoạt động: **${text.trim()}**!`, { reply_markup: PROJECT_DETAIL_KEYBOARD });
+    }
+
+    if (step === 'waiting_for_new_expense_data') {
+        const parts = text.split(',').map(s => s.trim());
+        if (parts.length < 3) return ctx.reply('❌ Nhập sai định dạng. Ví dụ: BCV, 13, 500');
+        const [tCode, qty, price] = parts;
+        const total = parseFloat(qty) * parseFloat(price);
+        const { error } = await supabase.from('pe_expenses').insert({ 
+            year: ctx.session.selectedExpenseYear, project_code: ctx.session.selectedProjectCode, activity_code: ctx.session.selectedActivityCode, 
+            task_code: tCode, qty: parseFloat(qty), price: parseFloat(price), total, record_code: 'MANUAL'
+        });
+        if (error) return ctx.reply('❌ Lỗi: ' + error.message);
+        ctx.session.step = 'idle'; return ctx.reply('✅ Đã thêm dự toán chi tiết!', { reply_markup: ACTIVITY_DETAIL_KEYBOARD });
+    }
+
+    if (step === 'waiting_for_expense_spent') {
+        const spent = parseFloat(text.replace(/[\.,\sđ]/g, ''));
+        if (isNaN(spent)) return ctx.reply('❌ Số tiền không hợp lệ.');
+        const { error } = await supabase.from('pe_expenses').update({ spent }).eq('id', ctx.session.selectedExpenseId);
+        if (error) return ctx.reply('❌ Lỗi cập cập: ' + error.message);
+        ctx.session.step = 'idle'; return ctx.reply('✅ Đã cập nhật số tiền thực tế đã chi!', { reply_markup: ACTIVITY_DETAIL_KEYBOARD });
+    }
+  }
   }
 
   // --- Quick Search Fallback (if no specific step) ---
@@ -1039,14 +1239,20 @@ bot.on('callback_query:data', async (ctx) => {
       msg += `📍 **${group.name}**\n`;
       group.items.forEach(item => {
         const tName = item.pe_task_types?.name || item.task_code;
+        const spent = item.spent || 0;
+        const rem = (item.total || 0) - spent;
         msg += `  ▫️ ${tName} ${item.qty} x ${item.price?.toLocaleString('vi-VN')} = **${item.total?.toLocaleString('vi-VN')}**\n`;
+        msg += `     Spent: \`${spent.toLocaleString('vi-VN')}\` | Rem: **${rem.toLocaleString('vi-VN')}**\n`;
+        msg += `     [Update Spent](upd_spent:${item.id})\n`;
       });
       const groupTotal = group.items.reduce((sum, i) => sum + (i.total || 0), 0);
       msg += `💰 **Cộng: ${groupTotal.toLocaleString('vi-VN')}**\n\n`;
     });
     msg += `_(Đơn vị: nghìn đồng)_`;
+    
+    ctx.session.selectedProjectCode = code;
     await ctx.answerCallbackQuery();
-    return ctx.reply(msg, { parse_mode: 'Markdown' });
+    return ctx.reply(msg, { parse_mode: 'Markdown', reply_markup: PROJECT_DETAIL_KEYBOARD });
   }
   if (data.startsWith('sel_mdate:')) {
     const p = data.split(':'); ctx.session.selectedMeetingDate = p[1];
@@ -1138,6 +1344,21 @@ bot.on('callback_query:data', async (ctx) => {
     ctx.session.step = 'waiting_for_giapha_edit_value';
     await ctx.answerCallbackQuery();
     return ctx.reply(`👉 Nhập giá trị mới cho **${field}**:`);
+  }
+
+  if (data.startsWith('upd_spent:')) {
+      const id = parseInt(data.split(':')[1]);
+      ctx.session.selectedExpenseId = id;
+      ctx.session.step = 'waiting_for_expense_spent';
+      await ctx.answerCallbackQuery();
+      return ctx.reply('👉 Nhập **Số tiền thực tế đã chi** cho mục này (nghìn đồng):');
+  }
+
+  if (data.startsWith('sel_act:')) {
+      const aCode = data.split(':')[1];
+      ctx.session.selectedActivityCode = aCode;
+      await ctx.answerCallbackQuery();
+      return ctx.reply(`📂 **HOẠT ĐỘNG: ${aCode}**\nChọn thao tác:`, { reply_markup: ACTIVITY_DETAIL_KEYBOARD });
   }
 
   await ctx.answerCallbackQuery();

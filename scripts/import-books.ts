@@ -29,13 +29,18 @@ async function importBooks() {
   let year = '';
   
   // 1. Parse Metadata and Title (Header #)
-  const titleLine = lines.find(l => l.startsWith('# '));
-  if (titleLine) {
-    bookTitle = titleLine.replace('# ', '').trim();
+  const titleLines = lines.filter(l => l.startsWith('# '));
+  if (titleLines.length > 0) {
+    bookTitle = titleLines.map(l => l.replace('# ', '').trim()).join(' - ');
+    
+    // Look for Năm biên soạn or Năm xuất bản
+    const yearLine = lines.find(l => l.includes('**Năm biên soạn:**') || l.includes('**Năm xuất bản:**'));
+    if (yearLine) {
+       year = yearLine.split(':**')[1].trim();
+    }
+    
     const authorLine = lines.find(l => l.includes('**Tác giả:**'));
-    const yearLine = lines.find(l => l.includes('**Năm xuất bản:**'));
-    author = authorLine ? authorLine.split('**Tác giả:**')[1].trim() : '';
-    year = yearLine ? yearLine.split('**Năm xuất bản:**')[1].trim() : '';
+    author = authorLine ? authorLine.split('**Tác giả:**')[1].trim() : 'Nhiều tác giả';
   }
 
   if (!bookTitle) {
