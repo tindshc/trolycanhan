@@ -40,7 +40,7 @@ interface SessionData {
     | 'waiting_for_expense_year' | 'waiting_for_new_project_code' | 'waiting_for_new_project_name'
     | 'waiting_for_new_activity_code' | 'waiting_for_new_activity_name'
     | 'waiting_for_new_expense_data' | 'waiting_for_expense_spent'
-    | 'waiting_for_doc_date' | 'waiting_for_doc_service' | 'waiting_for_doc_desc'
+    | 'waiting_for_doc_date' | 'waiting_for_doc_recipient' | 'waiting_for_doc_service' | 'waiting_for_doc_desc'
     | 'waiting_for_doc_deadline' | 'waiting_for_doc_address' | 'waiting_for_doc_phone';
   context: 'nhansu' | 'danhba' | 'giapha' | 'thuchi' | 'meetings' | 'books' | 'reminders' | 'horoscope' | 'projects' | 'work_menu' | 'personal_menu' | 'documents' | 'idle';
   
@@ -72,6 +72,7 @@ interface SessionData {
   tempDocData?: {
     type: string;
     date?: string;
+    recipient?: string;
     service?: string;
     description?: string;
     deadline?: string;
@@ -299,8 +300,8 @@ Báo giá phải được bỏ vào phong bì, niêm phong kín ở miệng bao 
 Thời gian nộp: Hạn cuối lúc ${data.deadline}.
 Các báo giá nhận được sau thời điểm trên sẽ không được xem xét.
 
-Nơi nhận: Khoa Dân số - Trạm Y tế Phường Hòa Cường.
-Địa chỉ: ${data.address}.
+Nơi nhận: ${data.recipient} - Trạm Y tế Phường Hòa Cường.
+Địa chỉ: ${data.address}, Đà Nẵng.
 Số điện thoại liên hệ: ${data.phone} (vào giờ hành chính).
 
 Rất mong sự hồi đáp của Quý đơn vị.
@@ -516,8 +517,8 @@ bot.on('message:text', async (ctx) => {
     ctx.session.step = 'waiting_for_doc_date';
     ctx.session.tempDocData = { type: 'thu_moi_chao_gia' };
     const today = new Date();
-    const dateStr = `${today.getDate()} tháng ${today.getMonth() + 1} năm ${today.getFullYear()}`;
-    return ctx.reply('✉️ **THƯ MỜI CHÀO GIÁ**\n\nBước 1: Nhập **Ngày soạn** thư mời (Ví dụ: 12 tháng 12 năm 2025):', { 
+    const dateStr = `${today.getDate()}/${today.getMonth() + 1}/${today.getFullYear()}`;
+    return ctx.reply('✉️ **THƯ MỜI CHÀO GIÁ**\n\nBước 1: Nhập **Ngày soạn** (ví dụ: `12/12/2026`):', { 
       reply_markup: new Keyboard().text(dateStr).row().text('⬅️ Quay lại').resized() 
     });
   }
@@ -814,18 +815,34 @@ bot.on('message:text', async (ctx) => {
 
     if (step === 'waiting_for_doc_date') {
       if (!ctx.session.tempDocData) ctx.session.tempDocData = { type: 'thu_moi_chao_gia' };
-      ctx.session.tempDocData.date = text;
-      ctx.session.step = 'waiting_for_doc_service';
-      return ctx.reply('Bước 2: Nhập **Tên dịch vụ** cần mời chào giá (nhấn nút dưới hoặc gõ tay):', { 
-        reply_markup: new Keyboard().text('dịch vụ tuyên truyền (xe cổ động, pano, cờ nheo, cờ phướn)').row().text('⬅️ Quay lại').resized() 
+      
+      let dateValue = text;
+      const dateMatch = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (dateMatch) {
+        dateValue = `${dateMatch[1]} tháng ${dateMatch[2]} năm ${dateMatch[3]}`;
+      }
+      
+      ctx.session.tempDocData.date = dateValue;
+      ctx.session.step = 'waiting_for_doc_recipient';
+      return ctx.reply('Bước 2: Nhập **Nơi nhận** (Tên khoa/phòng):\n_(Hệ thống sẽ tự thêm - Trạm Y tế Phường Hòa Cường)_', { 
+        reply_markup: new Keyboard().text('Khoa Dân số').row().text('⬅️ Quay lại').resized() 
       });
     }
+
+    if (step === 'waiting_for_doc_recipient') {
+        if (!ctx.session.tempDocData) ctx.session.tempDocData = { type: 'thu_moi_chao_gia' };
+        ctx.session.tempDocData.recipient = text;
+        ctx.session.step = 'waiting_for_doc_service';
+        return ctx.reply('Bước 3: Nhập **Tên dịch vụ** cần mời chào giá:', { 
+          reply_markup: new Keyboard().text('dịch vụ tuyên truyền (xe cổ động, pano, cờ nheo, cờ phướn)').row().text('⬅️ Quay lại').resized() 
+        });
+      }
 
     if (step === 'waiting_for_doc_service') {
       if (!ctx.session.tempDocData) ctx.session.tempDocData = { type: 'thu_moi_chao_gia' };
       ctx.session.tempDocData.service = text;
       ctx.session.step = 'waiting_for_doc_desc';
-      return ctx.reply('Bước 3: Nhập **Mô tả ngắn gọn** về nhu cầu:', { 
+      return ctx.reply('Bước 4: Nhập **Mô tả ngắn gọn** về nhu cầu:', { 
         reply_markup: new Keyboard().text('phục vụ hoạt động tại đơn vị').row().text('⬅️ Quay lại').resized() 
       });
     }
@@ -834,7 +851,7 @@ bot.on('message:text', async (ctx) => {
       if (!ctx.session.tempDocData) ctx.session.tempDocData = { type: 'thu_moi_chao_gia' };
       ctx.session.tempDocData.description = text;
       ctx.session.step = 'waiting_for_doc_deadline';
-      return ctx.reply('Bước 4: Nhập **Thời gian nộp báo giá**:', { 
+      return ctx.reply('Bước 5: Nhập **Thời gian nộp báo giá**:', { 
         reply_markup: new Keyboard().text('16 giờ 00 ngày 17 tháng 12 năm 2025').row().text('⬅️ Quay lại').resized() 
       });
     }
@@ -843,8 +860,8 @@ bot.on('message:text', async (ctx) => {
       if (!ctx.session.tempDocData) ctx.session.tempDocData = { type: 'thu_moi_chao_gia' };
       ctx.session.tempDocData.deadline = text;
       ctx.session.step = 'waiting_for_doc_address';
-      return ctx.reply('Bước 5: Nhập **Địa chỉ Trạm** (mặc định Hòa Cường):', { 
-        reply_markup: new Keyboard().text('Trạm Y tế Phường Hòa Cường').row().text('⬅️ Quay lại').resized() 
+      return ctx.reply('Bước 6: Nhập **Địa chỉ Trạm** (ví dụ: 163 Hải Phòng):\n_(Hệ thống tự thêm , Đà Nẵng)_', { 
+        reply_markup: new Keyboard().text('163 Hải Phòng').row().text('⬅️ Quay lại').resized() 
       });
     }
 
@@ -852,7 +869,7 @@ bot.on('message:text', async (ctx) => {
       if (!ctx.session.tempDocData) ctx.session.tempDocData = { type: 'thu_moi_chao_gia' };
       ctx.session.tempDocData.address = text;
       ctx.session.step = 'waiting_for_doc_phone';
-      return ctx.reply('Bước 6: Nhập **Số điện thoại liên hệ**:', { 
+      return ctx.reply('Bước 7: Nhập **Số điện thoại liên hệ**:', { 
         reply_markup: new Keyboard().text('0236.3868949').row().text('⬅️ Quay lại').resized() 
       });
     }
