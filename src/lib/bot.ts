@@ -41,7 +41,9 @@ interface SessionData {
     | 'waiting_for_new_activity_code' | 'waiting_for_new_activity_name'
     | 'waiting_for_new_expense_data' | 'waiting_for_expense_spent'
     | 'waiting_for_doc_date' | 'waiting_for_doc_recipient' | 'waiting_for_doc_service' | 'waiting_for_doc_desc'
-    | 'waiting_for_doc_deadline' | 'waiting_for_doc_address' | 'waiting_for_doc_phone';
+    | 'waiting_for_doc_deadline' | 'waiting_for_doc_address' | 'waiting_for_doc_phone'
+    | 'waiting_for_doc_date_cv' | 'waiting_for_doc_recipient_cv' | 'waiting_for_doc_draft_name'
+    | 'waiting_for_doc_cv_number' | 'waiting_for_doc_cv_date' | 'waiting_for_doc_issuer' | 'waiting_for_doc_opinion';
   context: 'nhansu' | 'danhba' | 'giapha' | 'thuchi' | 'meetings' | 'books' | 'reminders' | 'horoscope' | 'projects' | 'work_menu' | 'personal_menu' | 'documents' | 'idle';
   
   selectedGoalId?: number;
@@ -78,6 +80,11 @@ interface SessionData {
     deadline?: string;
     address?: string;
     phone?: string;
+    draft_name?: string;
+    request_cv_number?: string;
+    request_cv_date?: string;
+    issuer?: string;
+    opinion?: string;
   };
 }
 
@@ -115,7 +122,7 @@ const CA_NHAN_KEYBOARD = new Keyboard()
   .resized();
 
 const MAU_VAN_BAN_KEYBOARD = new Keyboard()
-  .text('✉️ Thư mời chào giá').row()
+  .text('✉️ Thư mời chào giá').text('📜 Công văn góp ý').row()
   .text('⬅️ Quay lại')
   .resized();
 
@@ -306,6 +313,23 @@ Số điện thoại liên hệ: ${data.phone} (vào giờ hành chính).
 
 Rất mong sự hồi đáp của Quý đơn vị.
 Xin chân thành cảm ơn.`;
+}
+
+function generateCommentLetter(data: any) {
+  return `CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+Độc lập – Tự do – Hạnh phúc
+
+Hòa Cường, ngày ${data.date}
+
+**V/v góp ý dự thảo ${data.draft_name}**
+
+Kính gửi: ${data.recipient}.
+
+Căn cứ Công văn số ${data.request_cv_number} ngày ${data.request_cv_date} của ${data.issuer} về việc góp ý dự thảo ${data.draft_name}.
+
+Sau khi nghiên cứu dự thảo, Trạm Y tế Phường Hòa Cường ${data.opinion}.
+
+Vậy Trạm Y tế Phường Hòa Cường kính báo cáo để ${data.recipient} tổng hợp.`;
 }
 
 // --- Logic Handlers ---
@@ -519,6 +543,16 @@ bot.on('message:text', async (ctx) => {
     const today = new Date();
     const dateStr = `${today.getDate()}/${today.getMonth() + 1}/${today.getFullYear()}`;
     return ctx.reply('✉️ **THƯ MỜI CHÀO GIÁ**\n\nBước 1: Nhập **Ngày soạn** (ví dụ: `12/12/2026`):', { 
+      reply_markup: new Keyboard().text(dateStr).row().text('⬅️ Quay lại').resized() 
+    });
+  }
+
+  if (text === '📜 Công văn góp ý') {
+    ctx.session.step = 'waiting_for_doc_date_cv';
+    ctx.session.tempDocData = { type: 'cong_van_gop_y' };
+    const today = new Date();
+    const dateStr = `${today.getDate()}/${today.getMonth() + 1}/${today.getFullYear()}`;
+    return ctx.reply('📜 **CÔNG VĂN GÓP Ý**\n\nBước 1: Nhập **Ngày soạn** công văn (ví dụ: `19/05/2025`):', { 
       reply_markup: new Keyboard().text(dateStr).row().text('⬅️ Quay lại').resized() 
     });
   }
@@ -903,6 +937,84 @@ bot.on('message:text', async (ctx) => {
 
       return await ctx.reply(doc, { reply_markup: MAU_VAN_BAN_KEYBOARD });
     }
+
+    if (step === 'waiting_for_doc_date_cv') {
+      if (!ctx.session.tempDocData) ctx.session.tempDocData = { type: 'cong_van_gop_y' };
+      let dateValue = text;
+      const dateMatch = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (dateMatch) dateValue = `${dateMatch[1]} tháng ${dateMatch[2]} năm ${dateMatch[3]}`;
+      ctx.session.tempDocData.date = dateValue;
+      ctx.session.step = 'waiting_for_doc_recipient_cv';
+      return ctx.reply('Bước 2: Cơ quan kính gửi (chọn hoặc gõ mới):', { 
+        reply_markup: new Keyboard().text('Chi cục Dân số thành phố Đà Nẵng').row().text('Sở Y tế thành phố Đà Nẵng').row().text('⬅️ Quay lại').resized() 
+      });
+    }
+
+    if (step === 'waiting_for_doc_recipient_cv') {
+      if (!ctx.session.tempDocData) ctx.session.tempDocData = { type: 'cong_van_gop_y' };
+      ctx.session.tempDocData.recipient = text;
+      ctx.session.step = 'waiting_for_doc_draft_name';
+      return ctx.reply('Bước 3: Nhập **Tên dự thảo / Kế hoạch / Đề án**:');
+    }
+
+    if (step === 'waiting_for_doc_draft_name') {
+      if (!ctx.session.tempDocData) ctx.session.tempDocData = { type: 'cong_van_gop_y' };
+      ctx.session.tempDocData.draft_name = text;
+      ctx.session.step = 'waiting_for_doc_cv_number';
+      return ctx.reply('Bước 4: Nhập **Số công văn** yêu cầu góp ý (ví dụ: `3446/SYT-NVY`):');
+    }
+
+    if (step === 'waiting_for_doc_cv_number') {
+      if (!ctx.session.tempDocData) ctx.session.tempDocData = { type: 'cong_van_gop_y' };
+      ctx.session.tempDocData.request_cv_number = text;
+      ctx.session.step = 'waiting_for_doc_cv_date';
+      return ctx.reply('Bước 5: Nhập **Ngày của công văn** yêu cầu (ví dụ: `16/05/2025`):');
+    }
+
+    if (step === 'waiting_for_doc_cv_date') {
+      if (!ctx.session.tempDocData) ctx.session.tempDocData = { type: 'cong_van_gop_y' };
+      let dateValue = text;
+      const dateMatch = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (dateMatch) dateValue = `${dateMatch[1]} tháng ${dateMatch[2]} năm ${dateMatch[3]}`;
+      ctx.session.tempDocData.request_cv_date = dateValue;
+      ctx.session.step = 'waiting_for_doc_issuer';
+      return ctx.reply('Bước 6: **Cơ quan ban hành** công văn yêu cầu:', { 
+        reply_markup: new Keyboard().text('Sở Y tế').text('Chi cục Dân số').row().text('⬅️ Quay lại').resized() 
+      });
+    }
+
+    if (step === 'waiting_for_doc_issuer') {
+      if (!ctx.session.tempDocData) ctx.session.tempDocData = { type: 'cong_van_gop_y' };
+      ctx.session.tempDocData.issuer = text;
+      ctx.session.step = 'waiting_for_doc_opinion';
+      return ctx.reply('Bước 7: Chọn **Ý kiến góp ý** phổ biến:', { 
+        reply_markup: new Keyboard()
+          .text('Thống nhất với toàn bộ nội dung dự thảo.').row()
+          .text('Thống nhất, không có ý kiến góp ý bổ sung.').row()
+          .text('Đồng ý và thống nhất với các nội dung trong dự thảo.').row()
+          .text('⬅️ Quay lại').resized() 
+      });
+    }
+
+    if (step === 'waiting_for_doc_opinion') {
+        if (!ctx.session.tempDocData) return ctx.reply('⚠️ Lỗi: Phiên làm việc bị mất dữ liệu.');
+        ctx.session.tempDocData.opinion = text;
+        const doc = generateCommentLetter(ctx.session.tempDocData);
+        
+        // Save to Supabase
+        const { error } = await supabase.from('document_records').insert({
+          doc_type: 'cong_van_gop_y',
+          fields: ctx.session.tempDocData,
+          content: doc,
+          chat_id: ctx.chat!.id.toString()
+        });
+  
+        ctx.session.step = 'idle';
+        if (error) await ctx.reply('⚠️ Lưu bị lỗi nhưng đây là văn bản của bạn:');
+        else await ctx.reply('✅ Đã soạn xong và lưu vào hệ thống:');
+  
+        return await ctx.reply(doc, { reply_markup: MAU_VAN_BAN_KEYBOARD });
+      }
 
     if (step === 'waiting_for_meeting_date') {
       const match = text.match(/^(\d{2})\/(\d{4})$/);
