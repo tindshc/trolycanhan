@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS public.nhansu (
   specialization TEXT,
   professional_title TEXT,
   professional_code TEXT,
+  gender TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

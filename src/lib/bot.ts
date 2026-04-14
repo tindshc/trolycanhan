@@ -7,7 +7,8 @@ import { generatePrayerOutdoor } from './vancung';
 // Define session interface
 interface SessionData {
   step: 'idle' 
-    | 'waiting_for_name' | 'waiting_for_year' | 'waiting_for_education' | 'waiting_for_specialty'
+    | 'waiting_for_name' | 'waiting_for_education_stat' | 'waiting_for_gender_stat' | 'waiting_for_specialty'
+    | 'waiting_for_new_nhansu_name' | 'waiting_for_new_nhansu_gender' | 'waiting_for_new_nhansu_education'
     | 'waiting_for_contact_search' 
     | 'waiting_for_edit_contact_search'
     | 'selecting_contact_to_edit'
@@ -45,6 +46,15 @@ interface SessionData {
     | 'waiting_for_doc_date_cv' | 'waiting_for_doc_recipient_cv' | 'waiting_for_doc_draft_name'
     | 'waiting_for_doc_cv_number' | 'waiting_for_doc_cv_date' | 'waiting_for_doc_issuer' | 'waiting_for_doc_opinion';
   context: 'nhansu' | 'danhba' | 'giapha' | 'thuchi' | 'meetings' | 'books' | 'reminders' | 'horoscope' | 'projects' | 'work_menu' | 'personal_menu' | 'documents' | 'idle';
+  
+  tempNhansuData?: {
+    full_name?: string;
+    gender?: string;
+    education_level?: string;
+  };
+
+  selectedStatType?: 'education' | 'gender';
+  selectedStatValue?: string;
   
   selectedGoalId?: number;
   selectedGoalName?: string;
@@ -128,7 +138,7 @@ const MAIN_KEYBOARD = new Keyboard()
   .resized();
 
 const CONG_VIEC_KEYBOARD = new Keyboard()
-  .text('🔍 Tìm nhân sự').text('📖 Danh bạ').row()
+  .text('📓 Sổ nhân sự').text('📖 Danh bạ').row()
   .text('📝 Biên bản họp').text('📊 Kinh phí dự án').row()
   .text('📋 Mẫu văn bản').text('💡 Nhắc việc').row()
   .text('⬅️ Quay lại').row()
@@ -147,8 +157,23 @@ const MAU_VAN_BAN_KEYBOARD = new Keyboard()
   .resized();
 
 const SEARCH_KEYBOARD = new Keyboard()
-  .text('👤 Tìm theo tên').text('📅 Lọc năm sinh').row()
-  .text('🎓 Lọc trình độ').text('💊 Lọc chuyên môn').row()
+  .text('👤 Tìm theo tên').text('📊 Thống kê').row()
+  .text('➕ Thêm nhân viên').text('⬅️ Quay lại')
+  .resized();
+
+const STATISTICS_KEYBOARD = new Keyboard()
+  .text('🎓 Theo trình độ').text('👫 Theo giới tính').row()
+  .text('⬅️ Quay lại')
+  .resized();
+
+const EDUCATION_LEVEL_KEYBOARD = new Keyboard()
+  .text('Đại học').text('Sau đại học').row()
+  .text('Cao đẳng').text('Trung cấp').row()
+  .text('Khác').text('⬅️ Quay lại')
+  .resized();
+
+const GENDER_KEYBOARD = new Keyboard()
+  .text('Nam').text('Nữ').row()
   .text('⬅️ Quay lại')
   .resized();
 
@@ -272,6 +297,7 @@ function formatVND(val: number) {
 
 function formatPerson(p: any) {
   return `✅ **${p.full_name}**
+👫 Giới tính: ${p.gender || 'Chưa rõ'}
 📅 Ngày sinh: ${p.date_of_birth || 'Chưa rõ'}
 🏢 Đơn vị: ${p.department || 'Chưa rõ'}
 🎓 Trình độ: ${p.education_level || 'Chưa rõ'}
@@ -395,9 +421,9 @@ bot.on('message:text', async (ctx) => {
     return ctx.reply(`Chào mừng bạn! 🤖\n${HELP_TEXT}`, { parse_mode: 'Markdown', reply_markup: MAIN_KEYBOARD });
   }
 
-  if (text === '🔍 Tìm nhân sự') {
+  if (text === '📓 Sổ nhân sự') {
     ctx.session.step = 'idle'; ctx.session.context = 'nhansu';
-    return ctx.reply('📂 **Tìm kiếm nhân sự** tiêu chí nào?', { parse_mode: 'Markdown', reply_markup: SEARCH_KEYBOARD });
+    return ctx.reply('📂 **SỔ NHÂN SỰ**\nBạn muốn tra cứu hoặc thực hiện thao tác nào?', { parse_mode: 'Markdown', reply_markup: SEARCH_KEYBOARD });
   }
 
   if (text === '📖 Danh bạ') {
@@ -421,9 +447,9 @@ bot.on('message:text', async (ctx) => {
   }
 
   // --- Nhân sự Handlers ---
-  if (text === '🔍 Tìm nhân sự' && (ctx.session.context === 'work_menu' || ctx.session.context === 'nhansu')) {
+  if (text === '📓 Sổ nhân sự' && (ctx.session.context === 'work_menu' || ctx.session.context === 'nhansu')) {
     ctx.session.context = 'nhansu';
-    return ctx.reply('🔍 **TÌM KIẾM NHÂN SỰ**\nBạn muốn tìm kiếm theo tiêu chí nào?', { reply_markup: SEARCH_KEYBOARD });
+    return ctx.reply('🔍 **SỔ NHÂN SỰ**\nHãy chọn tiêu chí thống kê hoặc tìm kiếm:', { reply_markup: SEARCH_KEYBOARD });
   }
 
   if (text === '👤 Tìm theo tên' && ctx.session.context === 'nhansu') {
@@ -431,19 +457,27 @@ bot.on('message:text', async (ctx) => {
     return ctx.reply('🔍 Nhập **Họ và tên** nhân sự cần tìm:', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
   }
 
-  if (text === '📅 Lọc năm sinh' && ctx.session.context === 'nhansu') {
-    ctx.session.step = 'waiting_for_year';
-    return ctx.reply('🔍 Nhập **Năm sinh** cần lọc (ví dụ: 1985):', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
+  if (text === '📊 Thống kê' && ctx.session.context === 'nhansu') {
+    ctx.session.step = 'idle';
+    return ctx.reply('📊 **THỐNG KÊ NHÂN SỰ**\nBạn muốn thống kê theo tiêu chí nào?', { reply_markup: STATISTICS_KEYBOARD });
   }
 
-  if (text === '🎓 Lọc trình độ' && ctx.session.context === 'nhansu') {
-    ctx.session.step = 'waiting_for_education';
-    return ctx.reply('🔍 Nhập **Trình độ đào tạo** cần tìm (ví dụ: Đại học):', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
+  if (text === '🎓 Theo trình độ' && ctx.session.context === 'nhansu') {
+    ctx.session.step = 'waiting_for_education_stat';
+    ctx.session.selectedStatType = 'education';
+    return ctx.reply('🔍 Chọn hoặc nhập **Trình độ đào tạo** cần thống kê:', { reply_markup: EDUCATION_LEVEL_KEYBOARD });
   }
 
-  if (text === '💊 Lọc chuyên môn' && ctx.session.context === 'nhansu') {
-    ctx.session.step = 'waiting_for_specialty';
-    return ctx.reply('🔍 Nhập **Chuyên môn/Chuyên ngành** cần tìm:', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
+  if (text === '👫 Theo giới tính' && ctx.session.context === 'nhansu') {
+    ctx.session.step = 'waiting_for_gender_stat';
+    ctx.session.selectedStatType = 'gender';
+    return ctx.reply('🔍 Chọn **Giới tính** cần thống kê:', { reply_markup: GENDER_KEYBOARD });
+  }
+
+  if (text === '➕ Thêm nhân viên' && ctx.session.context === 'nhansu') {
+    ctx.session.step = 'waiting_for_new_nhansu_name';
+    ctx.session.tempNhansuData = {};
+    return ctx.reply('➕ **THÊM NHÂN VIÊN MỚI**\n\nBước 1: Nhập **Họ và tên** nhân viên:', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
   }
 
   // --- Danh bạ Handlers ---
@@ -630,6 +664,10 @@ bot.on('message:text', async (ctx) => {
        if (ctx.session.selectedExpenseId) { ctx.session.selectedExpenseId = undefined; ctx.session.step = 'idle'; return ctx.reply(`📂 **Hoạt động ${ctx.session.selectedActivityCode}**`, { reply_markup: ACTIVITY_DETAIL_KEYBOARD }); }
        if (ctx.session.selectedActivityCode) { ctx.session.selectedActivityCode = undefined; ctx.session.step = 'idle'; return ctx.reply(`📂 **Dự án ${ctx.session.selectedProjectCode}**`, { reply_markup: PROJECT_DETAIL_KEYBOARD }); }
        if (ctx.session.selectedProjectCode) { ctx.session.selectedProjectCode = undefined; ctx.session.step = 'idle'; return ctx.reply(`📊 **KINH PHÍ NĂM ${ctx.session.selectedExpenseYear}**`, { reply_markup: PROJECT_MAIN_KEYBOARD }); }
+    }
+    if (ctx.session.context === 'nhansu') {
+       ctx.session.context = 'work_menu'; ctx.session.step = 'idle';
+       return ctx.reply('💼 **DANH MỤC CÔNG VIỆC**', { reply_markup: CONG_VIEC_KEYBOARD });
     }
     if (workGroup.includes(ctx.session.context)) {
       ctx.session.context = 'work_menu'; ctx.session.step = 'idle';
@@ -1180,8 +1218,38 @@ bot.on('message:text', async (ctx) => {
     }
 
     if (step === 'waiting_for_name') { return executeSearch(ctx, 'full_name', text, 'Tìm theo tên'); }
-    if (step === 'waiting_for_year') { return executeSearch(ctx, 'date_of_birth', text, 'Lọc năm sinh'); }
-    if (step === 'waiting_for_education') { return executeSearch(ctx, 'education_level', text, 'Lọc trình độ'); }
+    if (step === 'waiting_for_education_stat' || step === 'waiting_for_gender_stat') {
+      const type = ctx.session.selectedStatType!;
+      const column = type === 'education' ? 'education_level' : 'gender';
+      const { count, error } = await supabase.from('nhansu').select('*', { count: 'exact', head: true }).eq(column, text);
+      if (error) return ctx.reply('❌ Lỗi thống kê: ' + error.message);
+      
+      const keyboard = new InlineKeyboard().text('📄 Xem chi tiết', `nh_stat_det:${type}:${text}`);
+      await ctx.reply(`📊 Thống kê **${type === 'education' ? 'Trình độ' : 'Giới tính'}**: **${text}**\n\n🔢 Số lượng: **${count || 0}** nhân sự.`, { reply_markup: keyboard });
+      ctx.session.step = 'idle';
+      return;
+    }
+    if (step === 'waiting_for_new_nhansu_name') {
+      ctx.session.tempNhansuData = { full_name: text };
+      ctx.session.step = 'waiting_for_new_nhansu_gender';
+      return ctx.reply('Bước 2: Chọn **Giới tính**:', { reply_markup: GENDER_KEYBOARD });
+    }
+    if (step === 'waiting_for_new_nhansu_gender') {
+      if (!ctx.session.tempNhansuData) return ctx.reply('⚠️ Lỗi session.');
+      ctx.session.tempNhansuData.gender = text;
+      ctx.session.step = 'waiting_for_new_nhansu_education';
+      return ctx.reply('Bước 3: Chọn **Trình độ đào tạo**:', { reply_markup: EDUCATION_LEVEL_KEYBOARD });
+    }
+    if (step === 'waiting_for_new_nhansu_education') {
+      if (!ctx.session.tempNhansuData) return ctx.reply('⚠️ Lỗi session.');
+      const { full_name, gender } = ctx.session.tempNhansuData;
+      const { error } = await supabase.from('nhansu').insert({ full_name, gender, education_level: text });
+      if (error) return ctx.reply('❌ Lỗi lưu dữ liệu: ' + error.message);
+      
+      ctx.session.step = 'idle';
+      delete ctx.session.tempNhansuData;
+      return ctx.reply(`✅ Đã thêm nhân viên: **${full_name}** mục giới tính **${gender}**, trình độ **${text}** thành công!`, { reply_markup: SEARCH_KEYBOARD });
+    }
     if (step === 'waiting_for_specialty') { return executeSearch(ctx, 'specialization', text, 'Lọc chuyên môn'); }
 
     if (step === 'waiting_for_genealogy_search') { return executeGiaphaSearch(ctx, text); }
@@ -1523,6 +1591,20 @@ bot.on('callback_query:data', async (ctx) => {
       ctx.session.selectedActivityCode = aCode;
       await ctx.answerCallbackQuery();
       return ctx.reply(`📂 **HOẠT ĐỘNG: ${aCode}**\nChọn thao tác:`, { reply_markup: ACTIVITY_DETAIL_KEYBOARD });
+  }
+
+  if (data.startsWith('nh_stat_det:')) {
+    const [, type, value] = data.split(':');
+    const column = type === 'education' ? 'education_level' : 'gender';
+    const { data: list, error } = await supabase.from('nhansu').select('full_name, date_of_birth').eq(column, value).order('full_name');
+    if (error) return ctx.answerCallbackQuery('Lỗi: ' + error.message);
+    if (!list || list.length === 0) return ctx.answerCallbackQuery('Không có dữ liệu.');
+    
+    let resp = `📄 **DANH SÁCH CHI TIẾT (${value})**\n\n`;
+    resp += list.map((p, i) => `${i + 1}. **${p.full_name}** - ${p.date_of_birth || '---'}`).join('\n');
+    
+    await ctx.answerCallbackQuery();
+    return ctx.reply(resp, { parse_mode: 'Markdown' });
   }
 
   await ctx.answerCallbackQuery();
