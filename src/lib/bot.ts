@@ -10,7 +10,7 @@ interface SessionData {
     | 'waiting_for_delete_name' | 'waiting_for_new_nhansu_name' | 'waiting_for_new_nhansu_dob' 
     | 'waiting_for_new_nhansu_gender' | 'waiting_for_new_nhansu_education' | 'waiting_for_new_nhansu_specialty' | 'waiting_for_new_nhansu_dept'
     | 'doc_log_menu' | 'waiting_for_doc_log_number' | 'waiting_for_doc_log_title' | 'waiting_for_doc_log_search'
-    | 'activity_log_menu' | 'waiting_for_activity_name' | 'waiting_for_activity_sessions'
+    | 'activity_log_menu' | 'waiting_for_activity_name' | 'activity_method_selection' | 'waiting_for_activity_sessions'
     | 'training_menu' | 'waiting_for_training_topic_name' | 'waiting_for_training_attendance'
     | 'budget_menu' | 'waiting_for_budget_adjust_price' | 'waiting_for_budget_actual_spent'
     | 'waiting_for_name' | 'waiting_for_education_stat' | 'waiting_for_gender_stat' | 'waiting_for_specialty'
