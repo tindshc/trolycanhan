@@ -9,7 +9,7 @@ interface SessionData {
   step: 'idle' 
     | 'waiting_for_delete_name' | 'waiting_for_new_nhansu_name' | 'waiting_for_new_nhansu_dob' 
     | 'waiting_for_new_nhansu_gender' | 'waiting_for_new_nhansu_education' | 'waiting_for_new_nhansu_specialty' | 'waiting_for_new_nhansu_dept'
-    | 'doc_log_menu' | 'waiting_for_doc_log_number' | 'waiting_for_doc_log_title' | 'waiting_for_doc_log_search'
+    | 'doc_log_menu' | 'waiting_for_doc_log_number' | 'waiting_for_doc_log_title' | 'waiting_for_doc_log_search' | 'waiting_for_doc_log_delete'
     | 'activity_log_menu' | 'waiting_for_activity_name' | 'activity_method_selection' | 'waiting_for_activity_sessions'
     | 'training_menu' | 'waiting_for_training_topic_name' | 'waiting_for_training_attendance'
     | 'budget_menu' | 'waiting_for_budget_adjust_price' | 'waiting_for_budget_actual_spent'
@@ -172,7 +172,7 @@ const CONG_VIEC_KEYBOARD = new Keyboard()
 
 const DOC_LOG_KEYBOARD = new Keyboard()
   .text('➕ Thêm văn bản').text('🔍 Tìm số hiệu').row()
-  .text('⬅️ Quay lại')
+  .text('🗑️ Xóa văn bản').text('⬅️ Quay lại').row()
   .resized();
 
 const ACTIVITY_LOG_KEYBOARD = new Keyboard()
@@ -479,6 +479,26 @@ bot.on('message:text', async (ctx) => {
     return ctx.reply('📂 **SỔ NHÂN SỰ**\nBạn muốn tra cứu hoặc thực hiện thao tác nào?', { parse_mode: 'Markdown', reply_markup: SEARCH_KEYBOARD });
   }
 
+  if (text === '📖 Sổ văn bản') {
+    ctx.session.step = 'idle'; ctx.session.context = 'documents';
+    return ctx.reply('📖 **SỔ VĂN BẢN**\nChọn thao tác:', { reply_markup: DOC_LOG_KEYBOARD });
+  }
+
+  if (text === '🏃 Sổ hoạt động') {
+    ctx.session.step = 'idle'; ctx.session.context = 'activities';
+    return ctx.reply('🏃 **SỔ HOẠT ĐỘNG**\nChọn thao tác:', { reply_markup: ACTIVITY_LOG_KEYBOARD });
+  }
+
+  if (text === '🎓 Sổ tập huấn') {
+    ctx.session.step = 'idle'; ctx.session.context = 'training';
+    return ctx.reply('🎓 **SỔ TẬP HUẤN**\nChọn thao tác:', { reply_markup: TRAINING_KEYBOARD });
+  }
+
+  if (text === '💰 Sổ kinh phí') {
+    ctx.session.step = 'idle'; ctx.session.context = 'projects';
+    return ctx.reply('💰 **SỔ KINH PHÍ**\nChọn thao tác:', { reply_markup: BUDGET_BOOK_KEYBOARD });
+  }
+
   if (text === '📖 Danh bạ') {
     ctx.session.step = 'idle'; ctx.session.context = 'danhba';
     return ctx.reply('📖 **Danh bạ phối hợp** thao tác nào?', { parse_mode: 'Markdown', reply_markup: DANHBA_KEYBOARD });
@@ -639,11 +659,51 @@ bot.on('message:text', async (ctx) => {
     return ctx.reply('🔍 Nhập **Số hiệu** hoặc **Từ khóa tiêu đề** cần tìm:', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
   }
 
+  if (text === '🗑️ Xóa văn bản' && ctx.session.context === 'documents') {
+    ctx.session.step = 'waiting_for_doc_log_delete';
+    return ctx.reply('🗑️ **XÓA VĂN BẢN**\nNhập **Số hiệu** văn bản bạn muốn xóa:', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
+  }
+
   // --- Sổ hoạt động Handlers ---
-  if (text === '➕ Thêm hoạt động' && (ctx.session.context === 'work_menu' || ctx.session.context === 'nhansu')) {
+  if (text === '➕ Thêm hoạt động' && ctx.session.context === 'activities') {
     ctx.session.step = 'waiting_for_activity_name';
     ctx.session.tempActivityLog = {};
     return ctx.reply('🏃 **THÊM HOẠT ĐỘNG MỚI**\n\nBước 1: Nhập **Tên hoạt động**:');
+  }
+
+  if (text === '📊 Thống kê hoạt động' && ctx.session.context === 'activities') {
+    const { data, error } = await supabase.from('activity_logs').select('method, sessions_count');
+    if (error) return ctx.reply('❌ Lỗi: ' + error.message);
+    if (!data || data.length === 0) return ctx.reply('Chưa có hoạt động nào.');
+    const stats: Record<string, number> = {};
+    data.forEach(d => { stats[d.method || 'Khác'] = (stats[d.method || 'Khác'] || 0) + (d.sessions_count || 1); });
+    let resp = `📊 **THỐNG KÊ HOẠT ĐỘNG TRUYỀN THÔNG**\n\n`;
+    Object.entries(stats).forEach(([m, count]) => { resp += `🔹 **${m}**: ${count} buổi\n`; });
+    return ctx.reply(resp, { parse_mode: 'Markdown' });
+  }
+
+  // --- Sổ tập huấn Handlers ---
+  if (text === '📑 Theo dõi tập huấn' && ctx.session.context === 'training') {
+    const { data, error } = await supabase.from('training_attendance')
+      .select('person_id, status, training_sessions(training_topics(name)), nhansu(full_name)')
+      .eq('status', 'Có mặt');
+    
+    if (error) return ctx.reply('❌ Lỗi: ' + error.message);
+    if (!data || data.length === 0) return ctx.reply('Chưa có dữ liệu tập huấn.');
+    
+    const reports: Record<string, Set<string>> = {};
+    data.forEach((d: any) => {
+        const name = d.nhansu?.full_name || 'N/A';
+        const topic = d.training_sessions?.training_topics?.name || 'N/A';
+        if (!reports[name]) reports[name] = new Set();
+        reports[name].add(topic);
+    });
+
+    let resp = `🎓 **BÁO CÁO QUÁ TRÌNH TẬP HUẤN**\n\n`;
+    Object.entries(reports).forEach(([name, topics]) => {
+        resp += `👤 **${name}**:\n   ✅ ${Array.from(topics).join(', ')}\n\n`;
+    });
+    return ctx.reply(resp, { parse_mode: 'Markdown' });
   }
 
   if (text === '📜 Văn cúng' && (ctx.session.context === 'personal_menu' || ctx.session.context === 'idle')) {
@@ -1559,6 +1619,16 @@ bot.on('message:text', async (ctx) => {
       ctx.session.step = 'idle';
       return ctx.reply(resp, { parse_mode: 'Markdown', reply_markup: DOC_LOG_KEYBOARD });
     }
+    if (step === 'waiting_for_doc_log_delete') {
+      const { data, error } = await supabase.from('doc_logs').select('*').ilike('doc_number', `%${text}%`).limit(5);
+      if (error) return ctx.reply('❌ Lỗi: ' + error.message);
+      if (!data || data.length === 0) return ctx.reply(`¯\\_(ツ)_/¯ Không tìm thấy văn bản số "${text}".`);
+      for (const d of data) {
+          const kb = new InlineKeyboard().text('🗑️ XÁC NHẬN XÓA', `del_doc:${d.id}`);
+          await ctx.reply(`📄 **${d.doc_number}**: ${d.title}`, { reply_markup: kb });
+      }
+      return;
+    }
 
     // --- Sổ hoạt động Processing ---
     if (step === 'waiting_for_activity_name') {
@@ -1898,6 +1968,14 @@ bot.on('callback_query:data', async (ctx) => {
       
       await ctx.answerCallbackQuery();
       return ctx.reply(resp, { parse_mode: 'Markdown' });
+  }
+
+  if (data.startsWith('del_doc:')) {
+    const id = parseInt(data.split(':')[1]);
+    const { error } = await supabase.from('doc_logs').delete().eq('id', id);
+    if (error) return ctx.answerCallbackQuery('Lỗi xóa: ' + error.message);
+    await ctx.answerCallbackQuery('Đã xóa thành công!');
+    return ctx.editMessageText('✅ **ĐÃ XÓA VĂN BẢN KHỎI SỔ**');
   }
 
   await ctx.answerCallbackQuery();
