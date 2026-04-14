@@ -1226,7 +1226,7 @@ bot.on('message:text', async (ctx) => {
       
       const keyboard = new InlineKeyboard().text('📄 Xem chi tiết', `nh_stat_det:${type}:${text}`);
       await ctx.reply(`📊 Thống kê **${type === 'education' ? 'Trình độ' : 'Giới tính'}**: **${text}**\n\n🔢 Số lượng: **${count || 0}** nhân sự.`, { reply_markup: keyboard });
-      ctx.session.step = 'idle';
+      // ctx.session.step = 'idle'; // KEEP STEP ACTIVE to allow continuous selection
       return;
     }
     if (step === 'waiting_for_new_nhansu_name') {
