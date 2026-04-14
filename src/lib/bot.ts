@@ -50,7 +50,7 @@ interface SessionData {
     | 'waiting_for_doc_deadline' | 'waiting_for_doc_address' | 'waiting_for_doc_phone'
     | 'waiting_for_doc_date_cv' | 'waiting_for_doc_recipient_cv' | 'waiting_for_doc_draft_name'
     | 'waiting_for_doc_cv_number' | 'waiting_for_doc_cv_date' | 'waiting_for_doc_issuer' | 'waiting_for_doc_opinion';
-  context: 'nhansu' | 'danhba' | 'giapha' | 'thuchi' | 'meetings' | 'books' | 'reminders' | 'horoscope' | 'projects' | 'work_menu' | 'personal_menu' | 'documents' | 'idle';
+  context: 'nhansu' | 'danhba' | 'giapha' | 'thuchi' | 'meetings' | 'books' | 'reminders' | 'horoscope' | 'projects' | 'work_menu' | 'personal_menu' | 'documents' | 'idle' | 'activities' | 'training';
   
   tempNhansuData?: {
     full_name?: string;
