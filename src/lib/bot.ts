@@ -7,9 +7,13 @@ import { generatePrayerOutdoor } from './vancung';
 // Define session interface
 interface SessionData {
   step: 'idle' 
-    | 'waiting_for_name' | 'waiting_for_education_stat' | 'waiting_for_gender_stat' | 'waiting_for_specialty'
     | 'waiting_for_delete_name' | 'waiting_for_new_nhansu_name' | 'waiting_for_new_nhansu_dob' 
     | 'waiting_for_new_nhansu_gender' | 'waiting_for_new_nhansu_education' | 'waiting_for_new_nhansu_specialty' | 'waiting_for_new_nhansu_dept'
+    | 'doc_log_menu' | 'waiting_for_doc_log_number' | 'waiting_for_doc_log_title' | 'waiting_for_doc_log_search'
+    | 'activity_log_menu' | 'waiting_for_activity_name' | 'waiting_for_activity_sessions'
+    | 'training_menu' | 'waiting_for_training_topic_name' | 'waiting_for_training_attendance'
+    | 'budget_menu' | 'waiting_for_budget_adjust_price' | 'waiting_for_budget_actual_spent'
+    | 'waiting_for_name' | 'waiting_for_education_stat' | 'waiting_for_gender_stat' | 'waiting_for_specialty'
     | 'waiting_for_contact_search' 
     | 'waiting_for_edit_contact_search'
     | 'selecting_contact_to_edit'
@@ -142,10 +146,36 @@ const MAIN_KEYBOARD = new Keyboard()
   .resized();
 
 const CONG_VIEC_KEYBOARD = new Keyboard()
-  .text('📓 Sổ nhân sự').text('📖 Danh bạ').row()
-  .text('📝 Biên bản họp').text('📊 Kinh phí dự án').row()
-  .text('📋 Mẫu văn bản').text('💡 Nhắc việc').row()
-  .text('⬅️ Quay lại').row()
+  .text('📓 Sổ nhân sự').text('📖 Sổ văn bản').row()
+  .text('🏃 Sổ hoạt động').text('🎓 Sổ tập huấn').row()
+  .text('💰 Sổ kinh phí').text('📝 Biên bản họp').row()
+  .text('💡 Nhắc việc').text('⬅️ Quay lại').row()
+  .resized();
+
+const DOC_LOG_KEYBOARD = new Keyboard()
+  .text('➕ Thêm văn bản').text('🔍 Tìm số hiệu').row()
+  .text('⬅️ Quay lại')
+  .resized();
+
+const ACTIVITY_LOG_KEYBOARD = new Keyboard()
+  .text('➕ Thêm hoạt động').text('📊 Thống kê hoạt động').row()
+  .text('⬅️ Quay lại')
+  .resized();
+
+const ACTIVITY_METHOD_KEYBOARD = new Keyboard()
+  .text('Nhóm nhỏ').text('Nhóm').row()
+  .text('Zalo/Facebook').text('Loa đài').row()
+  .text('Sự kiện/Chiến dịch').text('⬅️ Quay lại')
+  .resized();
+
+const TRAINING_KEYBOARD = new Keyboard()
+  .text('➕ Mở lớp mới').text('📑 Theo dõi tập huấn').row()
+  .text('⬅️ Quay lại')
+  .resized();
+
+const BUDGET_BOOK_KEYBOARD = new Keyboard()
+  .text('📊 Xem ngân sách').text('⚙️ Điều chỉnh chi phí').row()
+  .text('⬅️ Quay lại')
   .resized();
 
 const CA_NHAN_KEYBOARD = new Keyboard()
@@ -559,16 +589,43 @@ bot.on('message:text', async (ctx) => {
     return ctx.reply('📚 **THƯ VIỆN SÁCH**\nChọn sách bạn muốn đọc:', { reply_markup: keyboard });
   }
 
-  if (text === '💡 Nhắc việc') {
+  if (text === '📊 Xem ngân sách' && ctx.session.context === 'projects') {
+    // Show summary of all projects
+    const { data: projects } = await supabase.from('pe_projects').select('*');
+    if (!projects) return ctx.reply('Chưa có dự án nào.');
+    const kb = new InlineKeyboard();
+    projects.forEach(p => kb.text(p.name, `bg_proj:${p.code}`).row());
+    return ctx.reply('💰 **NGÂN SÁCH DỰ ÁN**\nChọn dự án để xem chi tiết:', { reply_markup: kb });
+  }
+
+  if (text === '⚙️ Điều chỉnh chi phí' && ctx.session.context === 'projects') {
     ctx.session.step = 'idle';
-    ctx.session.context = 'reminders';
-    return ctx.reply('💡 **TRỢ LÝ NHẮC VIỆC**\nTôi có thể giúp gì cho lịch trình của bạn hôm nay?', { reply_markup: REMINDER_MAIN_KEYBOARD });
+    return ctx.reply('⚙️ **ĐIỀU CHỈNH CHI PHÍ**\nChọn hạng mục bạn muốn cập nhật đơn giá (Cấp phát/Thực chi):', { reply_markup: BUDGET_BOOK_KEYBOARD });
   }
 
   if (text === '📅 Xem ngày tốt' && (ctx.session.context === 'personal_menu' || ctx.session.context === 'horoscope')) {
     ctx.session.step = 'idle';
     ctx.session.context = 'horoscope';
     return ctx.reply('📅 **XEM NGÀY LÀNH THÁNG TỐT**\nChọn loại công việc bạn muốn xem ngày:', { reply_markup: HOROSCOPE_KEYBOARD });
+  }
+
+  // --- Sổ văn bản Handlers ---
+  if (text === '➕ Thêm văn bản' && ctx.session.context === 'documents') {
+    ctx.session.step = 'waiting_for_doc_log_number';
+    ctx.session.tempDocLog = {};
+    return ctx.reply('➕ **THÊM VĂN BẢN MỚI**\n\nBước 1: Nhập **Số hiệu văn bản** (VD: 123/BC-TYT):', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
+  }
+
+  if (text === '🔍 Tìm số hiệu' && ctx.session.context === 'documents') {
+    ctx.session.step = 'waiting_for_doc_log_search';
+    return ctx.reply('🔍 Nhập **Số hiệu** hoặc **Từ khóa tiêu đề** cần tìm:', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
+  }
+
+  // --- Sổ hoạt động Handlers ---
+  if (text === '➕ Thêm hoạt động' && (ctx.session.context === 'work_menu' || ctx.session.context === 'nhansu')) {
+    ctx.session.step = 'waiting_for_activity_name';
+    ctx.session.tempActivityLog = {};
+    return ctx.reply('🏃 **THÊM HOẠT ĐỘNG MỚI**\n\nBước 1: Nhập **Tên hoạt động**:');
   }
 
   if (text === '📜 Văn cúng' && (ctx.session.context === 'personal_menu' || ctx.session.context === 'idle')) {
@@ -1460,12 +1517,64 @@ bot.on('message:text', async (ctx) => {
         ctx.session.step = 'idle'; return ctx.reply('✅ Đã thêm dự toán chi tiết!', { reply_markup: ACTIVITY_DETAIL_KEYBOARD });
     }
 
-    if (step === 'waiting_for_expense_spent') {
-        const spent = parseFloat(text.replace(/[\.,\sđ]/g, ''));
-        if (isNaN(spent)) return ctx.reply('❌ Số tiền không hợp lệ.');
-        const { error } = await supabase.from('pe_expenses').update({ spent }).eq('id', ctx.session.selectedExpenseId);
-        if (error) return ctx.reply('❌ Lỗi cập cập: ' + error.message);
-        ctx.session.step = 'idle'; return ctx.reply('✅ Đã cập nhật số tiền thực tế đã chi!', { reply_markup: ACTIVITY_DETAIL_KEYBOARD });
+    // --- Sổ văn bản Processing ---
+    if (step === 'waiting_for_doc_log_number') {
+      ctx.session.tempDocLog!.doc_number = text;
+      ctx.session.step = 'waiting_for_doc_log_title';
+      return ctx.reply('Bước 2: Nhập **Tiêu đề văn bản**:');
+    }
+    if (step === 'waiting_for_doc_log_title') {
+      const { doc_number } = ctx.session.tempDocLog!;
+      const { error } = await supabase.from('doc_logs').insert({ doc_number, title: text, chat_id: ctx.chat.id.toString() });
+      if (error) return ctx.reply('❌ Lỗi: ' + error.message);
+      ctx.session.step = 'idle'; delete ctx.session.tempDocLog;
+      return ctx.reply(`✅ Đã lưu văn bản số **${doc_number}**!`, { reply_markup: DOC_LOG_KEYBOARD });
+    }
+    if (step === 'waiting_for_doc_log_search') {
+      const { data, error } = await supabase.from('doc_logs').select('*').or(`doc_number.ilike.%${text}%,title.ilike.%${text}%`).limit(10);
+      if (error) return ctx.reply('❌ Lỗi: ' + error.message);
+      if (!data || data.length === 0) return ctx.reply(`¯\\_(ツ)_/¯ Không tìm thấy văn bản nào khớp với "${text}".`);
+      let resp = `🔍 **KẾT QUẢ TÌM KIẾM VĂN BẢN:**\n\n`;
+      data.forEach((d: any, idx: number) => {
+        resp += `${idx+1}. **${d.doc_number}**: ${d.title}\n📅 ${d.issued_date}\n\n`;
+      });
+      ctx.session.step = 'idle';
+      return ctx.reply(resp, { parse_mode: 'Markdown', reply_markup: DOC_LOG_KEYBOARD });
+    }
+
+    // --- Sổ hoạt động Processing ---
+    if (step === 'waiting_for_activity_name') {
+      ctx.session.tempActivityLog!.name = text;
+      ctx.session.step = 'activity_method_selection'; // Intermediate internal step
+      return ctx.reply('Bước 2: Chọn **Hình thức truyền thông**:', { reply_markup: ACTIVITY_METHOD_KEYBOARD });
+    }
+    if (text === 'Nhóm nhỏ' || text === 'Nhóm' || text === 'Zalo/Facebook' || text === 'Loa đài' || text === 'Sự kiện/Chiến dịch') {
+       if (ctx.session.tempActivityLog) {
+          ctx.session.tempActivityLog.method = text;
+          ctx.session.step = 'waiting_for_activity_sessions';
+          return ctx.reply('Bước 3: Nhập **Số buổi thực hiện** (VD: 1, 5...):', { reply_markup: new Keyboard().text('1').text('2').text('5').row().text('⬅️ Quay lại').resized() });
+       }
+    }
+    // --- Sổ tập huấn Processing ---
+    if (text === '➕ Mở lớp mới' && ctx.session.context === 'work_menu') {
+      const { data: topics } = await supabase.from('training_topics').select('*');
+      if (!topics || topics.length === 0) {
+          // Auto create some topics if empty
+          await supabase.from('training_topics').insert([{name: 'Dân số & KHHGĐ'}, {name: 'An toàn thực phẩm'}, {name: 'Phòng chống dịch'}]);
+          return ctx.reply('🔄 Đang khởi tạo danh mục nội dung... Vui lòng nhấn lại nút **Mở lớp mới**.', { reply_markup: TRAINING_KEYBOARD });
+      }
+      const kb = new InlineKeyboard();
+      topics.forEach(t => kb.text(t.name, `tr_topic:${t.id}`).row());
+      return ctx.reply('🎓 **MỞ LỚP TẬP HUẤN**\nChọn nội dung tập huấn:', { reply_markup: kb });
+    }
+
+    if (step === 'waiting_for_training_attendance') {
+        if (text === '✅ HOÀN TẤT ĐIỂM DANH') {
+            ctx.session.step = 'idle';
+            const count = ctx.session.attendanceSelection?.length || 0;
+            return ctx.reply(`✅ Đã ghi nhận điểm danh cho **${count}** người!`, { reply_markup: TRAINING_KEYBOARD });
+        }
+        // Handle names if needed (but we use Inline for attendance usually)
     }
   }
 
@@ -1672,6 +1781,105 @@ bot.on('callback_query:data', async (ctx) => {
     
     await ctx.answerCallbackQuery('Đã xóa nhân sự thành công!');
     return ctx.editMessageText('✅ **ĐÃ XÓA NHÂN SỰ NÀY KHỎI HỆ THỐNG**');
+  }
+
+  if (data.startsWith('tr_topic:')) {
+    const tid = parseInt(data.split(':')[1]);
+    ctx.session.selectedTrainingTopicId = tid;
+    const kb = new InlineKeyboard()
+      .text('👥 Toàn bộ (Chọn người vắng)', 'tr_type:all').row()
+      .text('🎯 Chỉ định (Chọn người đi)', 'tr_type:select');
+    await ctx.answerCallbackQuery();
+    return ctx.editMessageText('🏢 **HÌNH THỨC LỚP HỌC**\nChọn cách điểm danh:', { reply_markup: kb });
+  }
+
+  if (data.startsWith('tr_type:')) {
+    const type = data.split(':')[1];
+    ctx.session.trainingIsUniversal = type === 'all';
+    
+    // Create Session
+    const { data: session, error } = await supabase.from('training_sessions').insert({ 
+      topic_id: ctx.session.selectedTrainingTopicId, 
+      is_universal: ctx.session.trainingIsUniversal,
+      chat_id: ctx.chat!.id.toString()
+    }).select().single();
+    
+    if (error) return ctx.answerCallbackQuery('Lỗi tạo lớp: ' + error.message);
+    ctx.session.selectedTrainingEventId = session.id;
+    ctx.session.attendanceSelection = [];
+    ctx.session.step = 'waiting_for_training_attendance';
+    
+    // Show attendance list
+    const { data: people } = await supabase.from('nhansu').select('id, full_name').limit(40);
+    const kb = new InlineKeyboard();
+    people?.forEach(p => kb.text(`⬜ ${p.full_name}`, `tr_att:${p.id}`).row());
+    kb.text('✅ HOÀN TẤT ĐIỂM DANH', 'tr_done');
+
+    const msg = type === 'all' ? '🚩 **ĐIỂM DANH: CHỌN NGƯỜI VẮNG**\n(Những người không chọn mặc định là CÓ MẶT)' : '🚩 **ĐIỂM DANH: CHỌN NGƯỜI THAM GIA**';
+    await ctx.answerCallbackQuery();
+    return ctx.reply(msg, { reply_markup: kb });
+  }
+
+  if (data.startsWith('tr_att:')) {
+    const pid = parseInt(data.split(':')[1]);
+    const { selectedTrainingEventId, trainingIsUniversal, attendanceSelection } = ctx.session;
+    
+    const idx = attendanceSelection!.indexOf(pid);
+    if (idx > -1) {
+        attendanceSelection!.splice(idx, 1);
+        await supabase.from('training_attendance').delete().eq('session_id', selectedTrainingEventId).eq('person_id', pid);
+    } else {
+        attendanceSelection!.push(pid);
+        await supabase.from('training_attendance').insert({ 
+            session_id: selectedTrainingEventId, 
+            person_id: pid, 
+            status: trainingIsUniversal ? 'Vắng' : 'Có mặt' 
+        });
+    }
+
+    // Update message with checked icons
+    const { data: people } = await supabase.from('nhansu').select('id, full_name').limit(40);
+    const kb = new InlineKeyboard();
+    people?.forEach(p => {
+        const isSel = attendanceSelection!.includes(p.id);
+        kb.text(`${isSel ? '✅' : '⬜'} ${p.full_name}`, `tr_att:${p.id}`).row();
+    });
+    kb.text('✅ HOÀN TẤT', 'tr_done');
+    
+    await ctx.answerCallbackQuery();
+    try { await ctx.editMessageReplyMarkup({ reply_markup: kb }); } catch(e) {}
+    return;
+  }
+
+  if (data === 'tr_done') {
+      ctx.session.step = 'idle';
+      const count = ctx.session.attendanceSelection?.length || 0;
+      await ctx.answerCallbackQuery();
+      return ctx.editMessageText(`🎉 **HOÀN TẤT ĐIỂM DANH**\nĐã ghi nhận dữ liệu cho **${count}** người.`, { reply_markup: new InlineKeyboard() });
+  }
+
+  if (data.startsWith('bg_proj:')) {
+      const code = data.split(':')[1];
+      const { data: expenses } = await supabase.from('pe_expenses').select('*').eq('project_code', code);
+      if (!expenses || expenses.length === 0) return ctx.answerCallbackQuery('Chưa có dữ liệu chi phí.');
+      
+      let totalPlan = 0; let totalApproved = 0; let totalActual = 0;
+      expenses.forEach(e => {
+          totalPlan += (e.price || 0) * (e.qty || 0);
+          totalApproved += (e.total_approved || (e.price_approved || 0) * (e.qty_approved || 0) || 0);
+          totalActual += (e.total_actual || (e.price_actual || 0) * (e.qty_actual || 0) || 0);
+      });
+
+      const progress = totalApproved > 0 ? (totalActual / totalApproved * 100).toFixed(1) : '0';
+      const resp = `📊 **BÁO CÁO NGÂN SÁCH DỰ ÁN: ${code}**\n\n` +
+                   `🔹 Kế hoạch: **${totalPlan.toLocaleString()}đ**\n` +
+                   `🔸 Cấp phát: **${totalApproved.toLocaleString()}đ**\n` +
+                   `✅ Thực chi: **${totalActual.toLocaleString()}đ**\n\n` +
+                   `📈 Tiến độ giải ngân: **${progress}%**\n` +
+                   `${totalActual < totalApproved ? `💰 Dư kinh phí: **${(totalApproved - totalActual).toLocaleString()}đ**` : ''}`;
+      
+      await ctx.answerCallbackQuery();
+      return ctx.reply(resp, { parse_mode: 'Markdown' });
   }
 
   await ctx.answerCallbackQuery();
