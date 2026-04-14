@@ -8,7 +8,8 @@ import { generatePrayerOutdoor } from './vancung';
 interface SessionData {
   step: 'idle' 
     | 'waiting_for_name' | 'waiting_for_education_stat' | 'waiting_for_gender_stat' | 'waiting_for_specialty'
-    | 'waiting_for_delete_name' | 'waiting_for_new_nhansu_name' | 'waiting_for_new_nhansu_gender' | 'waiting_for_new_nhansu_education'
+    | 'waiting_for_delete_name' | 'waiting_for_new_nhansu_name' | 'waiting_for_new_nhansu_dob' 
+    | 'waiting_for_new_nhansu_gender' | 'waiting_for_new_nhansu_education' | 'waiting_for_new_nhansu_specialty' | 'waiting_for_new_nhansu_dept'
     | 'waiting_for_contact_search' 
     | 'waiting_for_edit_contact_search'
     | 'selecting_contact_to_edit'
@@ -49,8 +50,11 @@ interface SessionData {
   
   tempNhansuData?: {
     full_name?: string;
+    date_of_birth?: string;
     gender?: string;
     education_level?: string;
+    specialization?: string;
+    department?: string;
   };
 
   selectedStatType?: 'education' | 'gender';
@@ -1245,24 +1249,51 @@ bot.on('message:text', async (ctx) => {
     }
     if (step === 'waiting_for_new_nhansu_name') {
       ctx.session.tempNhansuData = { full_name: text };
+      ctx.session.step = 'waiting_for_new_nhansu_dob';
+      return ctx.reply('Bước 2: Nhập **Năm sinh** (hoặc Ngày sinh DD/MM/YYYY):', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
+    }
+    if (step === 'waiting_for_new_nhansu_dob') {
+      if (!ctx.session.tempNhansuData) return ctx.reply('⚠️ Lỗi session.');
+      ctx.session.tempNhansuData.date_of_birth = text;
       ctx.session.step = 'waiting_for_new_nhansu_gender';
-      return ctx.reply('Bước 2: Chọn **Giới tính**:', { reply_markup: GENDER_KEYBOARD });
+      return ctx.reply('Bước 3: Chọn **Giới tính**:', { reply_markup: GENDER_KEYBOARD });
     }
     if (step === 'waiting_for_new_nhansu_gender') {
       if (!ctx.session.tempNhansuData) return ctx.reply('⚠️ Lỗi session.');
       ctx.session.tempNhansuData.gender = text;
       ctx.session.step = 'waiting_for_new_nhansu_education';
-      return ctx.reply('Bước 3: Chọn **Trình độ đào tạo**:', { reply_markup: EDUCATION_LEVEL_KEYBOARD });
+      return ctx.reply('Bước 4: Chọn **Trình độ đào tạo**:', { reply_markup: EDUCATION_LEVEL_KEYBOARD });
     }
     if (step === 'waiting_for_new_nhansu_education') {
       if (!ctx.session.tempNhansuData) return ctx.reply('⚠️ Lỗi session.');
-      const { full_name, gender } = ctx.session.tempNhansuData;
-      const { error } = await supabase.from('nhansu').insert({ full_name, gender, education_level: text });
+      ctx.session.tempNhansuData.education_level = text;
+      ctx.session.step = 'waiting_for_new_nhansu_specialty';
+      return ctx.reply('Bước 5: Nhập **Chuyên môn** (ví dụ: Kế toán, CNTT...):', { reply_markup: new Keyboard().text('Bỏ qua').row().text('⬅️ Quay lại').resized() });
+    }
+    if (step === 'waiting_for_new_nhansu_specialty') {
+      if (!ctx.session.tempNhansuData) return ctx.reply('⚠️ Lỗi session.');
+      ctx.session.tempNhansuData.specialization = text === 'Bỏ qua' ? '' : text;
+      ctx.session.step = 'waiting_for_new_nhansu_dept';
+      return ctx.reply('Bước 6: Nhập **Phòng ban/Đơn vị**: ', { reply_markup: new Keyboard().text('Lưu ngay').row().text('⬅️ Quay lại').resized() });
+    }
+    if (step === 'waiting_for_new_nhansu_dept') {
+      if (!ctx.session.tempNhansuData) return ctx.reply('⚠️ Lỗi session.');
+      const { full_name, date_of_birth, gender, education_level, specialization } = ctx.session.tempNhansuData;
+      const department = text === 'Lưu ngay' ? '' : text;
+      
+      const { error } = await supabase.from('nhansu').insert({ 
+        full_name, 
+        date_of_birth: date_of_birth ? (date_of_birth.includes('/') ? date_of_birth.split('/').reverse().join('-') : `${date_of_birth}-01-01`) : null, 
+        gender, 
+        education_level, 
+        specialization, 
+        department 
+      });
       if (error) return ctx.reply('❌ Lỗi lưu dữ liệu: ' + error.message);
       
       ctx.session.step = 'idle';
       delete ctx.session.tempNhansuData;
-      return ctx.reply(`✅ Đã thêm nhân viên: **${full_name}** mục giới tính **${gender}**, trình độ **${text}** thành công!`, { reply_markup: SEARCH_KEYBOARD });
+      return ctx.reply(`✅ Đã thêm nhân viên: **${full_name}** thành công!`, { reply_markup: SEARCH_KEYBOARD });
     }
 
     if (step === 'waiting_for_delete_name') {
