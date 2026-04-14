@@ -104,6 +104,24 @@ interface SessionData {
     issuer?: string;
     opinion?: string;
   };
+
+  tempDocLog?: {
+    doc_number?: string;
+    title?: string;
+    category?: string;
+  };
+
+  tempActivityLog?: {
+    name?: string;
+    method?: string;
+    sessions_count?: number;
+    has_budget?: boolean;
+  };
+
+  selectedTrainingTopicId?: number;
+  selectedTrainingEventId?: number;
+  trainingIsUniversal?: boolean;
+  attendanceSelection?: number[];
 }
 
 type MyContext = Context & SessionFlavor<SessionData>;
