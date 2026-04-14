@@ -8,7 +8,7 @@ import { generatePrayerOutdoor } from './vancung';
 interface SessionData {
   step: 'idle' 
     | 'waiting_for_name' | 'waiting_for_education_stat' | 'waiting_for_gender_stat' | 'waiting_for_specialty'
-    | 'waiting_for_new_nhansu_name' | 'waiting_for_new_nhansu_gender' | 'waiting_for_new_nhansu_education'
+    | 'waiting_for_delete_name' | 'waiting_for_new_nhansu_name' | 'waiting_for_new_nhansu_gender' | 'waiting_for_new_nhansu_education'
     | 'waiting_for_contact_search' 
     | 'waiting_for_edit_contact_search'
     | 'selecting_contact_to_edit'
