@@ -158,7 +158,8 @@ const MAU_VAN_BAN_KEYBOARD = new Keyboard()
 
 const SEARCH_KEYBOARD = new Keyboard()
   .text('👤 Tìm theo tên').text('📊 Thống kê').row()
-  .text('➕ Thêm nhân viên').text('⬅️ Quay lại')
+  .text('➕ Thêm nhân viên').text('❌ Xóa nhân viên').row()
+  .text('⬅️ Quay lại')
   .resized();
 
 const STATISTICS_KEYBOARD = new Keyboard()
@@ -478,6 +479,11 @@ bot.on('message:text', async (ctx) => {
     ctx.session.step = 'waiting_for_new_nhansu_name';
     ctx.session.tempNhansuData = {};
     return ctx.reply('➕ **THÊM NHÂN VIÊN MỚI**\n\nBước 1: Nhập **Họ và tên** nhân viên:', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
+  }
+
+  if (text === '❌ Xóa nhân viên' && ctx.session.context === 'nhansu') {
+    ctx.session.step = 'waiting_for_delete_name';
+    return ctx.reply('🗑️ **XÓA NHÂN VIÊN**\nNhập **Họ và tên** nhân viên bạn muốn xóa:', { reply_markup: new Keyboard().text('⬅️ Quay lại').resized() });
   }
 
   // --- Danh bạ Handlers ---
@@ -1221,7 +1227,15 @@ bot.on('message:text', async (ctx) => {
     if (step === 'waiting_for_education_stat' || step === 'waiting_for_gender_stat') {
       const type = ctx.session.selectedStatType!;
       const column = type === 'education' ? 'education_level' : 'gender';
-      const { count, error } = await supabase.from('nhansu').select('*', { count: 'exact', head: true }).eq(column, text);
+      
+      let query = supabase.from('nhansu').select('*', { count: 'exact', head: true });
+      if (type === 'education' && text === 'Sau đại học') {
+          query = query.in(column, ['Thạc sĩ', 'Thạc sỹ', 'Tiến sĩ', 'Bác sĩ CKI', 'Sau đại học']);
+      } else {
+          query = query.eq(column, text);
+      }
+      
+      const { count, error } = await query;
       if (error) return ctx.reply('❌ Lỗi thống kê: ' + error.message);
       
       const keyboard = new InlineKeyboard().text('📄 Xem chi tiết', `nh_stat_det:${type}:${text}`);
@@ -1250,6 +1264,19 @@ bot.on('message:text', async (ctx) => {
       delete ctx.session.tempNhansuData;
       return ctx.reply(`✅ Đã thêm nhân viên: **${full_name}** mục giới tính **${gender}**, trình độ **${text}** thành công!`, { reply_markup: SEARCH_KEYBOARD });
     }
+
+    if (step === 'waiting_for_delete_name') {
+      const { data, error } = await supabase.from('nhansu').select('*').ilike('full_name', `%${text}%`).limit(5);
+      if (error) return ctx.reply('❌ Lỗi: ' + error.message);
+      if (!data || data.length === 0) return ctx.reply(`¯\\_(ツ)_/¯ Không tìm thấy nhân sự nào tên "${text}".`);
+      
+      for (const p of data) {
+        const keyboard = new InlineKeyboard().text('🗑️ XÁC NHẬN XÓA', `del_nhansu:${p.id}`);
+        await ctx.reply(formatPerson(p), { parse_mode: 'Markdown', reply_markup: keyboard });
+      }
+      return;
+    }
+
     if (step === 'waiting_for_specialty') { return executeSearch(ctx, 'specialization', text, 'Lọc chuyên môn'); }
 
     if (step === 'waiting_for_genealogy_search') { return executeGiaphaSearch(ctx, text); }
@@ -1605,6 +1632,15 @@ bot.on('callback_query:data', async (ctx) => {
     
     await ctx.answerCallbackQuery();
     return ctx.reply(resp, { parse_mode: 'Markdown' });
+  }
+
+  if (data.startsWith('del_nhansu:')) {
+    const id = parseInt(data.split(':')[1]);
+    const { error } = await supabase.from('nhansu').delete().eq('id', id);
+    if (error) return ctx.answerCallbackQuery('Lỗi xóa: ' + error.message);
+    
+    await ctx.answerCallbackQuery('Đã xóa nhân sự thành công!');
+    return ctx.editMessageText('✅ **ĐÃ XÓA NHÂN SỰ NÀY KHỎI HỆ THỐNG**');
   }
 
   await ctx.answerCallbackQuery();
