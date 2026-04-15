@@ -1,23 +1,28 @@
-import { bot } from '../src/lib/bot';
+import { Bot } from 'grammy';
+import { botConfig } from '../src/bot/config';
 
-const webhookUrl = process.argv[2];
-
-if (!webhookUrl) {
-  console.error('LỖI: Vui lòng cung cấp URL Vercel của bạn. \nVí dụ: npx tsx scripts/set-webhook.ts https://your-app.vercel.app');
-  process.exit(1);
-}
-
-const fullUrl = `${webhookUrl.replace(/\/$/, '')}/api/bot`;
-
-async function setWebhook() {
-  console.log(`Đang thiết lập Webhook tại: ${fullUrl}...`);
-  try {
-    await bot.api.setWebhook(fullUrl);
-    console.log('✅ THÀNH CÔNG! Webhook đã được thiết lập.');
-    console.log('Giờ đây bot sẽ tự động nhận tin nhắn qua Vercel.');
-  } catch (err) {
-    console.error('❌ THẤT BẠI khi thiết lập Webhook:', err);
+async function main() {
+  if (!botConfig.appUrl) {
+    throw new Error('Missing APP_URL. Example: https://your-project.vercel.app');
   }
+
+  const webhookUrl = new URL('/api/bot', botConfig.appUrl).toString();
+  const bot = new Bot(botConfig.telegramBotToken);
+  const options = {
+    allowed_updates: ['message', 'callback_query'] as const,
+    drop_pending_updates: false,
+    ...(botConfig.telegramWebhookSecret
+      ? { secret_token: botConfig.telegramWebhookSecret }
+      : {}),
+  };
+
+  await bot.api.setWebhook(webhookUrl, options);
+
+  const info = await bot.api.getWebhookInfo();
+  console.log(JSON.stringify(info, null, 2));
 }
 
-setWebhook();
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

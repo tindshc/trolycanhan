@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tro Ly Ca Nhan Bot
 
-## Getting Started
+Telegram bot built with `grammY`, deployed through `Vercel`, and backed by `Supabase`.
 
-First, run the development server:
+## Stack
+
+- Next.js App Router for the webhook endpoint
+- grammY for Telegram bot handlers and conversations
+- Supabase for persistent bot sessions and personnel data
+- TypeScript across the project
+
+## Main Paths
+
+- `src/app/api/bot/route.ts`: Telegram webhook endpoint for Vercel
+- `src/bot/index.ts`: bot bootstrap, middleware, conversations, handlers
+- `src/bot/handlers/*`: Telegram feature handlers
+- `src/bot/conversations/*`: multi-step grammY conversations
+- `src/bot/services/*`: Supabase-backed data access
+- `scripts/set-webhook.ts`: register Telegram webhook to Vercel
+
+## Environment Variables
+
+Copy `.env.example` to `.env.local` and set:
+
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_WEBHOOK_SECRET`
+- `APP_URL`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+## Local Development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+To run the bot locally with long polling:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run dev:bot
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Webhook Setup
 
-## Learn More
+After deploying to Vercel and setting the same env vars there:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run webhook:set
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+To remove the webhook:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run webhook:delete
+```
 
-## Deploy on Vercel
+## Supabase Setup
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Run the SQL in `supabase/schema.sql` to create:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `public.bot_sessions`
+- `public.nhansu`
+- `public.count_personnel_by_gender()`
+
+## Current Features
+
+- `/start` main menu
+- Personnel menu
+- Add personnel via multi-step conversation
+- Search and delete personnel
+- Personnel stats by gender and education level
